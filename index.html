@@ -53,6 +53,23 @@ body{font-family:-apple-system,'Malgun Gothic','Apple SD Gothic Neo','맑은 고
   font-weight:700;cursor:pointer;font-family:inherit;transition:all .18s;margin-left:10px;}
 .btn-patent:hover{border-color:var(--blue);color:var(--blue);background:var(--blue-l);}
 
+/* v16: PDF 저장폴더 선택 버튼 */
+.btn-folder{display:flex;align-items:center;gap:6px;padding:9px 14px;background:#fff;
+  border:1.5px solid var(--b);border-radius:10px;color:var(--tm);font-size:12px;
+  font-weight:700;cursor:pointer;font-family:inherit;transition:all .18s;
+  max-width:260px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  letter-spacing:-.2px;}
+.btn-folder:hover{border-color:#d97706;color:#92400e;background:#fef3c7;}
+.btn-folder.active{background:#fef3c7;border-color:#d97706;color:#92400e;}
+.btn-folder.active:hover{background:#fde68a;border-color:#b45309;}
+.btn-folder .bf-ico{font-size:13px;flex-shrink:0;}
+.btn-folder .bf-path{font-weight:600;letter-spacing:-.3px;overflow:hidden;
+  text-overflow:ellipsis;max-width:170px;}
+.btn-folder .bf-clear{display:inline-flex;align-items:center;justify-content:center;
+  width:18px;height:18px;border-radius:50%;background:rgba(146,64,14,.15);
+  margin-left:4px;font-size:10px;font-weight:800;transition:background .15s;}
+.btn-folder .bf-clear:hover{background:rgba(146,64,14,.3);}
+
 /* ── 특허관리 모달 ── */
 .pm-overlay{position:fixed;inset:0;background:rgba(15,20,40,.45);z-index:500;
   display:none;align-items:center;justify-content:center;padding:24px;}
@@ -1040,6 +1057,10 @@ body{font-family:-apple-system,'Malgun Gothic','Apple SD Gothic Neo','맑은 고
     <div class="stat"><div class="stat-n" id="st-done" style="color:var(--green)">0</div><div class="stat-l">발행완료</div></div>
     <div class="stat"><div class="stat-n" id="st-pend" style="color:var(--tm)">0</div><div class="stat-l">미발행</div></div>
   </div>
+  <button class="btn-folder" id="btn-pdf-folder" onclick="onPdfFolderClick(event)" title="PDF 저장폴더 설정 — 발행 시 현장별 하위폴더로 자동 저장">
+    <span class="bf-ico">📁</span>
+    <span class="bf-path" id="pdf-folder-label">저장폴더 미설정</span>
+  </button>
   <button class="btn-coman" onclick="openContractorManager()">📇 업체 관리</button>
   <button class="btn-patent" onclick="openPatentManager()">📋 특허 관리</button>
   <button class="btn-new" onclick="openModal()">＋ 현장 추가</button>
@@ -1550,6 +1571,241 @@ let _delPatentsCache   = [];
 /* ═══════════════════════════════════════════════════════════════════ */
 /* ══════ v12 END FIREBASE 통합 레이어 ═══════════════════════════════ */
 /* ═══════════════════════════════════════════════════════════════════ */
+
+/* ═══════════════════════════════════════════════════════════════════ */
+/* ══════ v16: File System Access (FSA) 모듈 ════════════════════════ */
+/*    PDF 저장폴더를 한 번 지정해두면 발행 시 현장별 하위폴더로 자동 저장      */
+/*    - Chrome/Edge 89+ 지원, Firefox/Safari 미지원 (기능 자동 비활성)        */
+/*    - 디렉토리 핸들은 IndexedDB에 저장 → 새로고침 후에도 유지                */
+/*    - 권한은 페이지 새로고침마다 한 번 재확인 필요 (Chrome 보안 정책)        */
+/* ═══════════════════════════════════════════════════════════════════ */
+const FSA = (function(){
+  const DB_NAME  = 'nf-pdf-folder';
+  const STORE    = 'handles';
+  const KEY_ROOT = 'root';
+  let _rootHandle = null;        // 현재 메모리 핸들
+  let _rootName   = null;        // 표시용 폴더명
+
+  // ── IndexedDB 헬퍼 ──────────────────────────────
+  function openDB(){
+    return new Promise((res, rej)=>{
+      const req = indexedDB.open(DB_NAME, 1);
+      req.onupgradeneeded = ()=>{
+        req.result.createObjectStore(STORE);
+      };
+      req.onsuccess = ()=>res(req.result);
+      req.onerror = ()=>rej(req.error);
+    });
+  }
+  async function idbPut(key, value){
+    const db = await openDB();
+    return new Promise((res, rej)=>{
+      const tx = db.transaction(STORE, 'readwrite');
+      tx.objectStore(STORE).put(value, key);
+      tx.oncomplete = ()=>{ db.close(); res(); };
+      tx.onerror = ()=>{ db.close(); rej(tx.error); };
+    });
+  }
+  async function idbGet(key){
+    const db = await openDB();
+    return new Promise((res, rej)=>{
+      const tx = db.transaction(STORE, 'readonly');
+      const req = tx.objectStore(STORE).get(key);
+      req.onsuccess = ()=>{ db.close(); res(req.result); };
+      req.onerror = ()=>{ db.close(); rej(req.error); };
+    });
+  }
+  async function idbDelete(key){
+    const db = await openDB();
+    return new Promise((res, rej)=>{
+      const tx = db.transaction(STORE, 'readwrite');
+      tx.objectStore(STORE).delete(key);
+      tx.oncomplete = ()=>{ db.close(); res(); };
+      tx.onerror = ()=>{ db.close(); rej(tx.error); };
+    });
+  }
+
+  // ── 폴더명 정제: Windows/macOS 금지문자 제거 ──────
+  function sanitizeFolder(name){
+    if(!name) return '_unnamed';
+    let s = String(name).trim()
+      .replace(/[\\/:*?"<>|]/g, '_')   // OS 금지문자
+      .replace(/\s+/g, ' ')
+      .replace(/\.+$/, '')             // 끝 점 제거 (Windows)
+      .replace(/^\.+/, '')             // 시작 점 제거
+      .slice(0, 80);                    // 최대 80자
+    return s || '_unnamed';
+  }
+  function sanitizeFile(name){
+    if(!name) return 'unnamed.pdf';
+    return String(name).replace(/[\\/:*?"<>|]/g, '_').slice(0, 200);
+  }
+
+  // ── Public API ──────────────────────────────────
+  function isSupported(){
+    return typeof window.showDirectoryPicker === 'function';
+  }
+
+  // 권한 확인 (rw)
+  async function verifyPerm(handle, requestIfNeeded=false){
+    if(!handle) return false;
+    try{
+      const opts = { mode: 'readwrite' };
+      let perm = await handle.queryPermission(opts);
+      if(perm === 'granted') return true;
+      if(requestIfNeeded){
+        perm = await handle.requestPermission(opts);
+        return perm === 'granted';
+      }
+      return false;
+    }catch(e){
+      console.warn('[FSA verifyPerm]', e);
+      return false;
+    }
+  }
+
+  // 루트폴더 선택 (사용자 인터랙션 필요)
+  async function pickRoot(){
+    if(!isSupported()){
+      throw new Error('이 브라우저는 폴더 자동저장을 지원하지 않습니다 (Chrome/Edge 사용 권장)');
+    }
+    const handle = await window.showDirectoryPicker({ mode:'readwrite' });
+    _rootHandle = handle;
+    _rootName   = handle.name;
+    try{ await idbPut(KEY_ROOT, handle); }catch(e){ console.warn('[FSA] idbPut fail', e); }
+    return { name: _rootName };
+  }
+
+  // 저장된 루트 복원 (페이지 로드 시 호출) - 권한은 묻지 않음
+  async function restoreRoot(){
+    if(!isSupported()) return null;
+    try{
+      const handle = await idbGet(KEY_ROOT);
+      if(!handle) return null;
+      _rootHandle = handle;
+      _rootName   = handle.name;
+      return { name: _rootName };
+    }catch(e){
+      console.warn('[FSA restore]', e);
+      return null;
+    }
+  }
+
+  // 루트 해제
+  async function clearRoot(){
+    _rootHandle = null;
+    _rootName   = null;
+    try{ await idbDelete(KEY_ROOT); }catch(e){}
+  }
+
+  function getStatus(){
+    return {
+      supported: isSupported(),
+      hasRoot: !!_rootHandle,
+      rootName: _rootName,
+    };
+  }
+
+  // 현재 활성 상태 (저장 가능?) — 권한 확인까지 포함
+  async function isReady(requestPerm=false){
+    if(!_rootHandle) return false;
+    return await verifyPerm(_rootHandle, requestPerm);
+  }
+
+  // 파일 저장: rootHandle/[subfolder]/[filename]
+  async function savePDF(blob, filename, subfolder){
+    if(!_rootHandle) throw new Error('저장폴더가 설정되지 않았습니다');
+    const ok = await verifyPerm(_rootHandle, true);
+    if(!ok) throw new Error('폴더 접근 권한이 없습니다');
+    const folderName = sanitizeFolder(subfolder);
+    const fileName   = sanitizeFile(filename);
+    // 하위 폴더 가져오기 또는 생성
+    const subHandle = await _rootHandle.getDirectoryHandle(folderName, { create: true });
+    // 동일 이름 충돌 시 자동 _1, _2 부여
+    let finalName = fileName;
+    let n = 1;
+    while(true){
+      try{
+        await subHandle.getFileHandle(finalName, { create: false });
+        // 존재함 → 이름 변경
+        const dot = fileName.lastIndexOf('.');
+        const base = dot>=0 ? fileName.slice(0,dot) : fileName;
+        const ext  = dot>=0 ? fileName.slice(dot) : '';
+        finalName = `${base}_${n}${ext}`;
+        n++;
+        if(n > 99) break;  // 안전장치
+      }catch(e){
+        // 없음 → 사용 가능
+        break;
+      }
+    }
+    const fileHandle = await subHandle.getFileHandle(finalName, { create: true });
+    const writable   = await fileHandle.createWritable();
+    await writable.write(blob);
+    await writable.close();
+    return { folder: folderName, file: finalName };
+  }
+
+  return { isSupported, pickRoot, restoreRoot, clearRoot, getStatus, isReady, savePDF };
+})();
+
+/* ── UI: 헤더 폴더 버튼 라벨 갱신 ───────────────────── */
+function updatePdfFolderUI(){
+  const btn = document.getElementById('btn-pdf-folder');
+  const lbl = document.getElementById('pdf-folder-label');
+  if(!btn || !lbl) return;
+  const st = FSA.getStatus();
+  if(!st.supported){
+    btn.classList.remove('active');
+    lbl.textContent = '폴더저장 미지원 (Chrome 권장)';
+    btn.title = '이 브라우저는 폴더 자동저장을 지원하지 않습니다. Chrome/Edge에서 사용하세요.';
+    btn.style.opacity = '.55';
+    btn.style.cursor = 'not-allowed';
+    return;
+  }
+  if(st.hasRoot){
+    btn.classList.add('active');
+    lbl.innerHTML = `${escH(st.rootName)} <span class="bf-clear" onclick="event.stopPropagation();onPdfFolderClear();" title="저장폴더 해제">×</span>`;
+    btn.title = `PDF 저장폴더: ${st.rootName}\n발행 시 현장명 하위폴더로 자동 저장됩니다.\n클릭하여 다른 폴더로 변경.`;
+  } else {
+    btn.classList.remove('active');
+    lbl.textContent = '저장폴더 미설정';
+    btn.title = 'PDF 저장폴더 설정 — 발행 시 현장별 하위폴더로 자동 저장';
+  }
+}
+
+/* ── UI: 폴더 버튼 클릭 ─────────────────────────── */
+async function onPdfFolderClick(e){
+  if(!FSA.isSupported()){
+    showToast('이 브라우저는 폴더 자동저장을 지원하지 않습니다.\nChrome 또는 Edge에서 사용하세요.', true);
+    return;
+  }
+  try{
+    const { name } = await FSA.pickRoot();
+    updatePdfFolderUI();
+    showToast(`✓ PDF 저장폴더: ${name}\n발행 시 현장별 하위폴더로 자동 저장됩니다`);
+  }catch(e){
+    if(e.name === 'AbortError'){
+      // 사용자가 다이얼로그 취소 - 토스트 안 띄움
+      return;
+    }
+    showToast('폴더 설정 실패: '+(e.message||e), true);
+  }
+}
+async function onPdfFolderClear(){
+  if(!confirm('PDF 저장폴더 설정을 해제하시겠습니까?\n이후 발행은 기존 ZIP 다운로드 방식으로 돌아갑니다.')) return;
+  await FSA.clearRoot();
+  updatePdfFolderUI();
+  showToast('저장폴더 해제됨 — ZIP 다운로드 방식으로 복귀');
+}
+
+/* ── 페이지 로드 시 루트 복원 (권한은 아직 묻지 않음) ── */
+(async function(){
+  try{
+    await FSA.restoreRoot();
+  }catch(e){ console.warn('[FSA boot]', e); }
+  updatePdfFolderUI();
+})();
 
 /* ═══ 특허 관리 (Firebase 통합 캐시 사용) ════════════════════════════════ */
 const PM_KEY      = 'nf_user_patents';  // (legacy 마이그레이션용)
@@ -3681,6 +3937,10 @@ async function renderPreviewBody(){
           <div class="pv-meta-item"><span class="pv-meta-label">특허번호</span><span class="pv-meta-value">${escH(pat.num)}</span></div>
           <div class="pv-meta-item"><span class="pv-meta-label">협약번호</span><span class="pv-meta-value agr">${agr?escH(agr):'<span style="color:var(--tm);font-weight:400">(미입력)</span>'}</span></div>
         </div>
+        ${FSA.getStatus().hasRoot
+          ? `<div style="padding:8px 14px;margin:6px 0 4px;background:#fef3c7;border:1px solid #fcd34d;border-radius:8px;font-size:11.5px;color:#92400e;line-height:1.5;font-weight:600;">
+              📁 저장 위치: <code style="background:#fff;padding:2px 6px;border-radius:4px;">${escH(FSA.getStatus().rootName)}\\${escH(p.name)}\\</code>
+            </div>` : ''}
         <div class="pv-img-wrap"><img src="${dataUrl}" alt="협약서 미리보기"></div>`;
     }catch(e){
       console.error(e);
@@ -3707,8 +3967,11 @@ async function renderPreviewBody(){
         <div class="pv-meta-item"><span class="pv-meta-label">작업 방식</span><span class="pv-meta-value">${_preview.mode==='batch-global'?'전체 대기 일괄':'업체별 일괄'}</span></div>
       </div>
       <div style="padding:10px 14px;margin:8px 0 4px;background:var(--blue-l);border:1px solid var(--blue-m);border-radius:8px;font-size:12px;color:var(--blue);line-height:1.5;">
-        📦 <b>ZIP 번들로 1개 파일 다운로드</b>됩니다 — 파일명: <code style="background:#fff;padding:2px 6px;border-radius:4px;">협약서_${getToday()}_${jobs.length}건.zip</code><br>
-        <span style="color:var(--tm);font-weight:500;">압축 풀면 특허별 PDF가 각각 분리되어 있습니다 (브라우저 다중 다운로드 차단 회피용)</span>
+        ${FSA.getStatus().hasRoot
+          ? `📁 <b>현장폴더로 자동저장</b>됩니다 — 경로: <code style="background:#fff;padding:2px 6px;border-radius:4px;">${escH(FSA.getStatus().rootName)}\\[현장명]\\</code><br>
+             <span style="color:var(--tm);font-weight:500;">발행할 ${jobs.length}건이 각 현장별 하위폴더로 개별 저장됩니다 (ZIP 압축 안 함)</span>`
+          : `📦 <b>ZIP 번들로 1개 파일 다운로드</b>됩니다 — 파일명: <code style="background:#fff;padding:2px 6px;border-radius:4px;">협약서_${getToday()}_${jobs.length}건.zip</code><br>
+             <span style="color:var(--tm);font-weight:500;">압축 풀면 특허별 PDF가 각각 분리되어 있습니다 (브라우저 다중 다운로드 차단 회피용)</span>`}
       </div>
       <div class="pv-list">${rows}</div>`;
   }
@@ -3732,10 +3995,26 @@ async function confirmPreview(){
   btn.disabled = true;
   btn.innerHTML = `⏳ 발행 중...`;
 
+  // v16: FSA(폴더 자동저장) 모드 우선 — 지원 + 루트 설정됨 + 권한 OK 이면 사용
+  let useFSA = false;
+  if(jobs.length > 0 && FSA.getStatus().hasRoot){
+    try{
+      useFSA = await FSA.isReady(true);  // 권한 확인 + 필요시 재요청
+      if(!useFSA){
+        showToast('저장폴더 접근 권한이 없어 ZIP 방식으로 발행합니다', true);
+      }
+    }catch(e){
+      console.warn('[FSA perm]', e);
+      useFSA = false;
+    }
+  }
+
   // 2건 이상 → ZIP 번들 모드 (브라우저 다중 다운로드 차단 회피)
-  const useZip = jobs.length >= 2 && typeof JSZip !== 'undefined';
+  // FSA 모드면 ZIP 사용 안 함 (개별 파일을 현장폴더로 직접 저장)
+  const useZip = !useFSA && jobs.length >= 2 && typeof JSZip !== 'undefined';
   const zip = useZip ? new JSZip() : null;
   const bundleDoneList = []; // ZIP 성공 시 상태 일괄 업데이트용
+  const fsaDoneList    = []; // v16: FSA 성공 시 상태 일괄 업데이트용
 
   let okCount = 0, failCount = 0;
   // v11 fix: 'ld' 잠금이 영구히 남지 않도록 추적
@@ -3755,7 +4034,26 @@ async function confirmPreview(){
       renderAll();
       try{
         await renderPDFTemplate(p, c, pat);
-        if(useZip){
+        if(useFSA){
+          // v16: FSA 모드 - 현장명 하위폴더로 직접 저장 (ZIP 안 함)
+          const { blob, filename } = await capturePDF(p, c, pat, true);
+          try{
+            await FSA.savePDF(blob, filename, p.name);
+            fsaDoneList.push({c, patId});
+            okCount++;
+          }catch(fsaErr){
+            console.error('[FSA save]', fsaErr);
+            // 개별 파일 실패 시 - 폴백으로 직접 다운로드
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url; a.download = filename;
+            document.body.appendChild(a); a.click();
+            setTimeout(()=>{ document.body.removeChild(a); URL.revokeObjectURL(url); }, 800);
+            fsaDoneList.push({c, patId});
+            okCount++;
+            showToast(`⚠ 폴더 저장 실패 → ${filename} 직접 다운로드`, true);
+          }
+        } else if(useZip){
           // ZIP 모드: blob만 받아 메모리에 누적
           const { blob, filename } = await capturePDF(p, c, pat, true);
           // 동일 파일명 충돌 방지
@@ -3783,6 +4081,17 @@ async function confirmPreview(){
         failCount++;
       }
       await new Promise(r=>setTimeout(r,200));
+    }
+
+    // v16: FSA 모드 - 발행 완료 후 상태 일괄 확정
+    if(useFSA && okCount>0){
+      const nowIso = new Date().toISOString();
+      for(const {c, patId} of fsaDoneList){
+        c.status[patId]='done';
+        c.issuedAt = c.issuedAt||{};
+        c.issuedAt[patId] = nowIso;
+      }
+      saveProjects();
     }
 
     // ZIP 번들 다운로드 + 상태 일괄 확정
@@ -3820,6 +4129,7 @@ async function confirmPreview(){
 
     // 완료 토스트
     if(failCount>0) showToast(`✓ ${okCount}건 발행, ⚠ ${failCount}건 실패`, failCount>okCount);
+    else if(useFSA) showToast(`✓ ${okCount}건 발행 완료 → 현장폴더로 자동저장됨`);
     else if(useZip) showToast(`✓ ${okCount}건 ZIP 번들 다운로드 완료`);
     else if(okCount>0) showToast(`✓ ${okCount}건 발행 완료`);
   } catch(fatalErr){
