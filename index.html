@@ -857,6 +857,31 @@ body{font-family:-apple-system,'Malgun Gothic','Apple SD Gothic Neo','맑은 고
 .mcard.locked{opacity:.65;background:var(--s2);}
 .mcard.locked:hover{transform:none;}
 
+/* v15: 현설일자 지남 + 업체 미등록 → 진한 노란색 강조 (영업담당자 알림용) */
+.mcard.briefing-overdue{
+  background:linear-gradient(180deg,#fde68a,#fcd34d);
+  border-color:#d97706;
+  box-shadow:0 0 0 1px rgba(217,119,6,.3), 0 2px 8px rgba(217,119,6,.18);
+}
+.mcard.briefing-overdue:hover{
+  border-color:#b45309;
+  box-shadow:0 0 0 1px rgba(180,83,9,.45), 0 4px 12px rgba(180,83,9,.22);
+  transform:translateY(-1px);
+}
+.mcard.briefing-overdue .proj-status.ps-need-co{
+  background:#fff7ed;color:#9a3412;border:1px solid #fdba74;
+}
+
+/* v15: 미니카드 현설일자 표시 (마감일 위 라인) */
+.mcard-row-brief{display:flex;align-items:center;gap:6px;margin-top:-2px;}
+.mcard-briefing{font-size:10.5px;color:#92400e;font-weight:700;
+  background:rgba(217,119,6,.12);padding:2px 8px;border-radius:5px;
+  display:inline-flex;align-items:center;gap:4px;letter-spacing:-.2px;
+  border:1px solid rgba(217,119,6,.25);}
+.mcard-briefing.passed{background:#d97706;color:#fff;border-color:#b45309;}
+.mcard.briefing-overdue .mcard-briefing{background:#92400e;color:#fff;
+  border-color:#78350f;box-shadow:0 1px 3px rgba(120,53,15,.3);}
+
 /* 카드 1행: 마감 뱃지 + 상태 뱃지 + 완료마크 */
 .mcard-row1{display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
 .mcard .d-badge{padding:2px 7px;font-size:10.5px;border-radius:5px;font-weight:700;
@@ -916,6 +941,36 @@ body{font-family:-apple-system,'Malgun Gothic','Apple SD Gothic Neo','맑은 고
 .mcard-warn-mss{padding:6px 8px;background:#faf5ff;border:1px dashed #c4b5fd;
   border-radius:6px;font-size:10.5px;color:#6d28d9;font-weight:600;
   line-height:1.45;margin-top:auto;display:flex;flex-direction:column;gap:4px;}
+
+/* ════════ v15: 현장설명회 일자 (briefingDate) ════════ */
+/* 상세 모달 내 편집 영역 */
+.briefing-edit-row{margin:10px 14px 4px;padding:9px 14px;background:#fef3c7;
+  border:1.5px solid #fcd34d;border-radius:9px;display:flex;align-items:center;
+  gap:10px;flex-wrap:wrap;}
+.briefing-edit-row.passed{background:#fed7aa;border-color:#fb923c;}
+.briefing-edit-lbl{font-size:11.5px;color:#92400e;font-weight:700;
+  letter-spacing:-.2px;display:inline-flex;align-items:center;gap:5px;}
+.briefing-edit-inp{padding:6px 10px;background:#fff;border:1.5px solid #fcd34d;
+  border-radius:7px;color:var(--t);font-size:12.5px;font-family:inherit;
+  cursor:pointer;outline:none;transition:all .15s;}
+.briefing-edit-inp:focus{border-color:#d97706;
+  box-shadow:0 0 0 3px rgba(217,119,6,.15);}
+.briefing-edit-row.passed .briefing-edit-inp{border-color:#fb923c;}
+.briefing-clear-btn{width:26px;height:26px;border-radius:6px;background:#fff;
+  border:1.5px solid #fcd34d;color:#92400e;font-size:14px;cursor:pointer;
+  font-weight:700;display:inline-flex;align-items:center;justify-content:center;
+  transition:all .15s;}
+.briefing-clear-btn:hover{background:#fef3c7;border-color:#d97706;}
+.briefing-status-tag{font-size:10.5px;font-weight:700;padding:2px 7px;
+  border-radius:5px;letter-spacing:-.2px;}
+.briefing-status-tag.passed{background:#d97706;color:#fff;}
+.briefing-status-tag.upcoming{background:#fef3c7;color:#92400e;
+  border:1px solid #fcd34d;}
+/* 상세 헤더의 마감일 옆 현설 표시 */
+.pc-briefing-inline{font-size:11px;color:#92400e;font-weight:700;
+  background:rgba(217,119,6,.1);padding:1px 7px;border-radius:4px;
+  margin-right:8px;letter-spacing:-.2px;}
+.pc-briefing-inline.passed{background:#d97706;color:#fff;}
 
 /* 빈 카드(특허 미확정 등) 안내 */
 .mcard-empty-hint{padding:6px 8px;background:#fffbeb;border:1px dashed #fde68a;
@@ -1058,6 +1113,8 @@ body{font-family:-apple-system,'Malgun Gothic','Apple SD Gothic Neo','맑은 고
     <div class="m-lbl">현장명 (단지명) *</div>
     <input class="m-inp" type="text" id="m-name" placeholder="예) 공고문내 단지명"
       onkeydown="if(event.key==='Enter')confirmModal()">
+    <div class="m-lbl">📢 현장설명회 일자 (선택)</div>
+    <input class="m-inp" type="date" id="m-brief" style="cursor:pointer;color-scheme:light">
     <div class="m-lbl">발행 마감일 · 시간</div>
     <div class="datetime-wrap">
       <div class="date-row">
@@ -1544,6 +1601,7 @@ function projectsToJSON(arr){
   return arr.map(p=>({
     id:p.id, name:p.name,
     deadline:p.deadline||null, deadlineTime:p.deadlineTime||null,
+    briefingDate:p.briefingDate||null,  // v15: 현장설명회 일자
     patentMode:p.patentMode||'batch',
     batchPatents:[...(p.batchPatents||[])],
     manualPending:!!p.manualPending,  // v10: 수동 발행대기 전환 플래그
@@ -1578,6 +1636,7 @@ function projectsFromJSON(arr){
     return {
       id:p.id, name:p.name,
       deadline:p.deadline||null, deadlineTime:p.deadlineTime||null,
+      briefingDate:p.briefingDate||null,  // v15: 현장설명회 일자
       patentMode:p.patentMode||'batch',
       batchPatents:new Set(p.batchPatents||[]),
       manualPending,
@@ -1770,6 +1829,24 @@ function setContractorNote(pId, cId, value){
   c.note = String(value||'').trim();
   saveProjects();
   // 카드 외형이 바뀌지는 않으니 renderAll 생략 (포커스 유지)
+}
+
+/* ═══ v15: 현장설명회 일자 (briefingDate) 저장 ═══ */
+function setBriefingDate(pId, dateStr){
+  const p = projects.find(x => x.id === pId);
+  if(!p) return;
+  const prev = p.briefingDate || null;
+  const next = (dateStr && String(dateStr).trim()) || null;
+  if(prev === next) return;
+  p.briefingDate = next;
+  saveProjects();
+  renderAll();
+  _refreshDetailIfOpen();
+  if(next){
+    showToast(`현설일자 저장: ${fmtDate(next)}`);
+  } else {
+    showToast('현설일자 삭제됨');
+  }
 }
 
 /* ═══ v13: 시공사 이름 인라인 수정 ═══ */
@@ -2029,7 +2106,7 @@ function toggleDoneSection(){
 
 /* ═══ MODAL ════════════════════════════════════════ */
 function openModal(){
-  ['m-name','m-time'].forEach(id=>document.getElementById(id).value='');
+  ['m-name','m-time','m-brief'].forEach(id=>document.getElementById(id).value='');
   ['m-year','m-month','m-day'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('modal').classList.add('open');
   setTimeout(()=>document.getElementById('m-name').focus(),120);
@@ -2042,6 +2119,7 @@ function confirmModal(){
   const m=document.getElementById('m-month').value;
   const d=document.getElementById('m-day').value;
   const t=document.getElementById('m-time').value.trim();
+  const briefingDate=document.getElementById('m-brief').value||null;  // v15
   let deadline=null,deadlineTime=null;
   if(y&&m&&d){
     deadline=`${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
@@ -2051,7 +2129,7 @@ function confirmModal(){
     }
   }
   projects.push({
-    id:pNext++,name,deadline,deadlineTime,
+    id:pNext++,name,deadline,deadlineTime,briefingDate,
     patentMode:'batch',         // 'batch' | 'pour'
     batchPatents:new Set(),     // selected patent IDs at project level
     manualPending:false,        // v10: 발행대기 전환 여부 (사용자가 명시적으로 전환)
@@ -2521,6 +2599,25 @@ function renderMiniCard(p, isCompleted=false){
   const pStatus      = projStatus(p);
   const statusBadge  = `<span class="proj-status ${PROJ_STATUS_CLS[pStatus]}">${PROJ_STATUS_LABEL[pStatus]}</span>`;
 
+  // v15: 현장설명회 일자 표시 + 지남 여부 판정
+  let briefHtml = '';
+  let briefOverdueCls = '';
+  if(p.briefingDate){
+    const today = new Date(); today.setHours(0,0,0,0);
+    const bd = new Date(p.briefingDate); bd.setHours(0,0,0,0);
+    const briefPassed = today >= bd;
+    const briefLabel = briefPassed
+      ? `📢 현설 ${fmtDate(p.briefingDate)} (지남)`
+      : `📢 현설 ${fmtDate(p.briefingDate)}`;
+    briefHtml = `<div class="mcard-row-brief">
+      <span class="mcard-briefing${briefPassed?' passed':''}">${briefLabel}</span>
+    </div>`;
+    // 영업담당자 알림: 현설일자 지났고 + 업체등록필요 + 완료 아님 → 진한 노란색
+    if(briefPassed && !isCompleted && pStatus === 'need-co'){
+      briefOverdueCls = ' briefing-overdue';
+    }
+  }
+
   // v14: 자재공급승인원 모드 여부
   const isMss = p.patentMode === 'mss';
 
@@ -2606,7 +2703,7 @@ function renderMiniCard(p, isCompleted=false){
     ? `<span class="proj-status ps-mss">📦 자재공급승인원</span>`
     : '';
 
-  return `<div class="mcard${completedCls}${lockedCls}" onclick="openProjectDetail(${p.id})" data-pid="${p.id}">
+  return `<div class="mcard${completedCls}${lockedCls}${briefOverdueCls}" onclick="openProjectDetail(${p.id})" data-pid="${p.id}">
     <div class="mcard-row1">
       <div class="d-badge ${cls}">${label}</div>
       ${statusBadge}
@@ -2618,6 +2715,7 @@ function renderMiniCard(p, isCompleted=false){
       <span class="mcard-name" title="${escH(p.name)}">${escH(p.name)}</span>
       <span class="mcard-progress" title="발행 진행률">${progText}</span>
     </div>
+    ${briefHtml}
     <div class="mcard-row3">
       <span class="mcard-deadline">📅 ${dlStr}</span>
       <span class="mcard-co-count">업체 ${p.contractors.length}개</span>
@@ -2678,6 +2776,16 @@ function renderProject(p, isCompleted=false){
   const allDoneNow=isAllIssuedDone(p);
   const locked=isCompleted; // expired → locked (read-only)
 
+  // v15: 현장설명회 일자 (briefingDate)
+  let briefInlineHtml = '';
+  let briefPassed = false;
+  if(p.briefingDate){
+    const today = new Date(); today.setHours(0,0,0,0);
+    const bd = new Date(p.briefingDate); bd.setHours(0,0,0,0);
+    briefPassed = today >= bd;
+    briefInlineHtml = `<span class="pc-briefing-inline${briefPassed?' passed':''}">📢 현설 ${fmtDate(p.briefingDate)}${briefPassed?' (지남)':''}</span>`;
+  }
+
   // patent chips for header
   let chipsHtml='';
   if(isMss){
@@ -2715,7 +2823,7 @@ function renderProject(p, isCompleted=false){
       <div class="d-badge ${cls}">${label}</div>
       <div class="pc-info">
         <div class="pc-name">${statusBadgeHtml}${escH(p.name)}</div>
-        <div class="pc-deadline">마감일: ${dlStr}</div>
+        <div class="pc-deadline">${briefInlineHtml}마감일: ${dlStr}</div>
       </div>
       <div class="pc-patents">${chipsHtml}</div>
       <div class="pc-meta">
@@ -2769,6 +2877,28 @@ function renderProject(p, isCompleted=false){
           ✓ 발행 완료 현장 — 모든 업체에 모든 특허 발행이 완료되었습니다
         </div>`;
       })()}
+      <!-- v15: 현장설명회 일자 입력/수정 -->
+      ${!locked
+        ? `<div class="briefing-edit-row${briefPassed?' passed':''}" onclick="event.stopPropagation()">
+            <span class="briefing-edit-lbl">📢 현장설명회 일자</span>
+            <input type="date" class="briefing-edit-inp" value="${p.briefingDate||''}"
+              onchange="setBriefingDate(${p.id}, this.value)"
+              onclick="event.stopPropagation()"
+              style="color-scheme:light;">
+            ${p.briefingDate
+              ? `<span class="briefing-status-tag ${briefPassed?'passed':'upcoming'}">${briefPassed?'지남':'예정'}</span>
+                 <button class="briefing-clear-btn"
+                   onclick="event.stopPropagation();setBriefingDate(${p.id}, '')"
+                   title="현설일자 삭제">×</button>`
+              : `<span style="font-size:11px;color:#92400e;font-weight:600;">미입력 — 공고문의 현장설명회 일자를 입력하면 카드에 표시됩니다</span>`}
+          </div>`
+        : (p.briefingDate
+            ? `<div class="briefing-edit-row${briefPassed?' passed':''}" onclick="event.stopPropagation()">
+                <span class="briefing-edit-lbl">📢 현장설명회 일자</span>
+                <span style="font-size:13px;color:var(--t);font-weight:700;">${fmtDate(p.briefingDate)}</span>
+                <span class="briefing-status-tag ${briefPassed?'passed':'upcoming'}">${briefPassed?'지남':'예정'}</span>
+              </div>`
+            : '')}
       <!-- ① 발행 방식 + 특허 선택 -->
       <div class="pat-config">
         <div class="pat-config-top">
