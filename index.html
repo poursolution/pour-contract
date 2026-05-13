@@ -973,6 +973,12 @@ body{font-family:-apple-system,'Malgun Gothic','Apple SD Gothic Neo','맑은 고
 .briefing-edit-inp:focus{border-color:#d97706;
   box-shadow:0 0 0 3px rgba(217,119,6,.15);}
 .briefing-edit-row.passed .briefing-edit-inp{border-color:#fb923c;}
+/* v17: 현설 시간 입력 (작은 숫자칸) */
+.briefing-edit-inp.briefing-time-inp{cursor:text;padding:6px 4px;}
+.briefing-edit-inp.briefing-time-inp:disabled{background:#fef3c7;
+  color:#a8967a;cursor:not-allowed;opacity:.7;}
+/* 모바일/좁은 화면 - 시간 칸이 안 짤리도록 */
+.briefing-edit-inp[type="date"]{min-width:140px;}
 .briefing-clear-btn{width:26px;height:26px;border-radius:6px;background:#fff;
   border:1.5px solid #fcd34d;color:#92400e;font-size:14px;cursor:pointer;
   font-weight:700;display:inline-flex;align-items:center;justify-content:center;
@@ -1134,8 +1140,16 @@ body{font-family:-apple-system,'Malgun Gothic','Apple SD Gothic Neo','맑은 고
     <div class="m-lbl">현장명 (단지명) *</div>
     <input class="m-inp" type="text" id="m-name" placeholder="예) 공고문내 단지명"
       onkeydown="if(event.key==='Enter')confirmModal()">
-    <div class="m-lbl">📢 현장설명회 일자 (선택)</div>
-    <input class="m-inp" type="date" id="m-brief" style="cursor:pointer;color-scheme:light">
+    <div class="m-lbl">📢 현장설명회 일자 · 시간 (선택)</div>
+    <div class="datetime-wrap">
+      <div class="date-row" style="gap:8px;">
+        <input class="m-inp" type="date" id="m-brief"
+          style="cursor:pointer;color-scheme:light;margin-bottom:0;flex:2;">
+        <input class="time-inp" type="number" id="m-brief-time" placeholder="시"
+          min="0" max="23" style="flex:1;max-width:80px;">
+        <span class="time-hint" style="flex-shrink:0;">시 (0~23)</span>
+      </div>
+    </div>
     <div class="m-lbl">발행 마감일 · 시간</div>
     <div class="datetime-wrap">
       <div class="date-row">
@@ -1858,6 +1872,7 @@ function projectsToJSON(arr){
     id:p.id, name:p.name,
     deadline:p.deadline||null, deadlineTime:p.deadlineTime||null,
     briefingDate:p.briefingDate||null,  // v15: 현장설명회 일자
+    briefingTime:p.briefingTime||null,  // v17: 현장설명회 시간
     patentMode:p.patentMode||'batch',
     batchPatents:[...(p.batchPatents||[])],
     manualPending:!!p.manualPending,  // v10: 수동 발행대기 전환 플래그
@@ -1893,6 +1908,7 @@ function projectsFromJSON(arr){
       id:p.id, name:p.name,
       deadline:p.deadline||null, deadlineTime:p.deadlineTime||null,
       briefingDate:p.briefingDate||null,  // v15: 현장설명회 일자
+      briefingTime:p.briefingTime||null,  // v17: 현장설명회 시간
       patentMode:p.patentMode||'batch',
       batchPatents:new Set(p.batchPatents||[]),
       manualPending,
@@ -2087,7 +2103,7 @@ function setContractorNote(pId, cId, value){
   // 카드 외형이 바뀌지는 않으니 renderAll 생략 (포커스 유지)
 }
 
-/* ═══ v15: 현장설명회 일자 (briefingDate) 저장 ═══ */
+/* ═══ v15/v17: 현장설명회 일자·시간 (briefingDate / briefingTime) 저장 ═══ */
 function setBriefingDate(pId, dateStr){
   const p = projects.find(x => x.id === pId);
   if(!p) return;
@@ -2095,13 +2111,44 @@ function setBriefingDate(pId, dateStr){
   const next = (dateStr && String(dateStr).trim()) || null;
   if(prev === next) return;
   p.briefingDate = next;
+  // 날짜 삭제 시 시간도 함께 삭제
+  if(!next) p.briefingTime = null;
   saveProjects();
   renderAll();
   _refreshDetailIfOpen();
   if(next){
-    showToast(`현설일자 저장: ${fmtDate(next)}`);
+    const ts = p.briefingTime ? ` ${p.briefingTime}` : '';
+    showToast(`현설일자 저장: ${fmtDate(next)}${ts}`);
   } else {
     showToast('현설일자 삭제됨');
+  }
+}
+
+// v17: 현설 시간만 별도 변경 (날짜는 유지)
+function setBriefingTime(pId, hourStr){
+  const p = projects.find(x => x.id === pId);
+  if(!p) return;
+  let next = null;
+  const s = String(hourStr||'').trim();
+  if(s !== ''){
+    const h = parseInt(s);
+    if(!isNaN(h) && h>=0 && h<=23) next = `${h}시`;
+    else { showToast('시간은 0~23 사이의 숫자만 입력 가능합니다', true); return; }
+  }
+  // 날짜가 없으면 시간만 저장하는 건 의미 없음
+  if(!p.briefingDate){
+    if(next){ showToast('먼저 현설 일자를 선택해주세요', true); return; }
+  }
+  const prev = p.briefingTime || null;
+  if(prev === next) return;
+  p.briefingTime = next;
+  saveProjects();
+  renderAll();
+  _refreshDetailIfOpen();
+  if(next){
+    showToast(`현설 시간 저장: ${next}`);
+  } else {
+    showToast('현설 시간 삭제됨');
   }
 }
 
@@ -2362,7 +2409,7 @@ function toggleDoneSection(){
 
 /* ═══ MODAL ════════════════════════════════════════ */
 function openModal(){
-  ['m-name','m-time','m-brief'].forEach(id=>document.getElementById(id).value='');
+  ['m-name','m-time','m-brief','m-brief-time'].forEach(id=>document.getElementById(id).value='');
   ['m-year','m-month','m-day'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('modal').classList.add('open');
   setTimeout(()=>document.getElementById('m-name').focus(),120);
@@ -2376,6 +2423,13 @@ function confirmModal(){
   const d=document.getElementById('m-day').value;
   const t=document.getElementById('m-time').value.trim();
   const briefingDate=document.getElementById('m-brief').value||null;  // v15
+  // v17: 현장설명회 시간
+  const briefT = document.getElementById('m-brief-time').value.trim();
+  let briefingTime = null;
+  if(briefingDate && briefT!==''){
+    const bh = parseInt(briefT);
+    if(!isNaN(bh) && bh>=0 && bh<=23) briefingTime = `${bh}시`;
+  }
   let deadline=null,deadlineTime=null;
   if(y&&m&&d){
     deadline=`${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
@@ -2385,7 +2439,7 @@ function confirmModal(){
     }
   }
   projects.push({
-    id:pNext++,name,deadline,deadlineTime,briefingDate,
+    id:pNext++,name,deadline,deadlineTime,briefingDate,briefingTime,
     patentMode:'batch',         // 'batch' | 'pour'
     batchPatents:new Set(),     // selected patent IDs at project level
     manualPending:false,        // v10: 발행대기 전환 여부 (사용자가 명시적으로 전환)
@@ -2855,16 +2909,26 @@ function renderMiniCard(p, isCompleted=false){
   const pStatus      = projStatus(p);
   const statusBadge  = `<span class="proj-status ${PROJ_STATUS_CLS[pStatus]}">${PROJ_STATUS_LABEL[pStatus]}</span>`;
 
-  // v15: 현장설명회 일자 표시 + 지남 여부 판정
+  // v15/v17: 현장설명회 일자·시간 표시 + 지남 여부 판정
   let briefHtml = '';
   let briefOverdueCls = '';
   if(p.briefingDate){
-    const today = new Date(); today.setHours(0,0,0,0);
-    const bd = new Date(p.briefingDate); bd.setHours(0,0,0,0);
-    const briefPassed = today >= bd;
+    // 시간이 있으면 "그 시각 정각" 기준, 없으면 "해당 날짜 종료(23:59)" 기준
+    const now = new Date();
+    const bd  = new Date(p.briefingDate);
+    if(p.briefingTime){
+      const bh = parseInt(String(p.briefingTime).replace(/[^0-9]/g,''));
+      if(!isNaN(bh)){ bd.setHours(bh, 0, 0, 0); }
+      else { bd.setHours(0,0,0,0); }
+    } else {
+      // 시간 미지정: 자정(당일 0시 0분) 통과하면 지남
+      bd.setHours(0, 0, 0, 0);
+    }
+    const briefPassed = now >= bd;
+    const tStr = p.briefingTime ? ' '+p.briefingTime : '';
     const briefLabel = briefPassed
-      ? `📢 현설 ${fmtDate(p.briefingDate)} (지남)`
-      : `📢 현설 ${fmtDate(p.briefingDate)}`;
+      ? `📢 현설 ${fmtDate(p.briefingDate)}${tStr} (지남)`
+      : `📢 현설 ${fmtDate(p.briefingDate)}${tStr}`;
     briefHtml = `<div class="mcard-row-brief">
       <span class="mcard-briefing${briefPassed?' passed':''}">${briefLabel}</span>
     </div>`;
@@ -3032,14 +3096,22 @@ function renderProject(p, isCompleted=false){
   const allDoneNow=isAllIssuedDone(p);
   const locked=isCompleted; // expired → locked (read-only)
 
-  // v15: 현장설명회 일자 (briefingDate)
+  // v15/v17: 현장설명회 일자·시간 (briefingDate / briefingTime)
   let briefInlineHtml = '';
   let briefPassed = false;
   if(p.briefingDate){
-    const today = new Date(); today.setHours(0,0,0,0);
-    const bd = new Date(p.briefingDate); bd.setHours(0,0,0,0);
-    briefPassed = today >= bd;
-    briefInlineHtml = `<span class="pc-briefing-inline${briefPassed?' passed':''}">📢 현설 ${fmtDate(p.briefingDate)}${briefPassed?' (지남)':''}</span>`;
+    const now = new Date();
+    const bd  = new Date(p.briefingDate);
+    if(p.briefingTime){
+      const bh = parseInt(String(p.briefingTime).replace(/[^0-9]/g,''));
+      if(!isNaN(bh)){ bd.setHours(bh, 0, 0, 0); }
+      else { bd.setHours(0,0,0,0); }
+    } else {
+      bd.setHours(0, 0, 0, 0);
+    }
+    briefPassed = now >= bd;
+    const tStr = p.briefingTime ? ' '+p.briefingTime : '';
+    briefInlineHtml = `<span class="pc-briefing-inline${briefPassed?' passed':''}">📢 현설 ${fmtDate(p.briefingDate)}${tStr}${briefPassed?' (지남)':''}</span>`;
   }
 
   // patent chips for header
@@ -3133,25 +3205,33 @@ function renderProject(p, isCompleted=false){
           ✓ 발행 완료 현장 — 모든 업체에 모든 특허 발행이 완료되었습니다
         </div>`;
       })()}
-      <!-- v15: 현장설명회 일자 입력/수정 -->
+      <!-- v15/v17: 현장설명회 일자·시간 입력/수정 -->
       ${!locked
         ? `<div class="briefing-edit-row${briefPassed?' passed':''}" onclick="event.stopPropagation()">
-            <span class="briefing-edit-lbl">📢 현장설명회 일자</span>
+            <span class="briefing-edit-lbl">📢 현장설명회</span>
             <input type="date" class="briefing-edit-inp" value="${p.briefingDate||''}"
               onchange="setBriefingDate(${p.id}, this.value)"
               onclick="event.stopPropagation()"
               style="color-scheme:light;">
+            <input type="number" class="briefing-edit-inp briefing-time-inp"
+              value="${p.briefingTime ? parseInt(String(p.briefingTime).replace(/[^0-9]/g,'')) : ''}"
+              min="0" max="23" placeholder="시"
+              ${!p.briefingDate ? 'disabled title="먼저 날짜를 선택하세요"' : ''}
+              onchange="setBriefingTime(${p.id}, this.value)"
+              onclick="event.stopPropagation()"
+              style="width:62px;text-align:center;">
+            <span style="font-size:11.5px;color:#92400e;font-weight:700;letter-spacing:-.2px;">시 (0~23, 선택)</span>
             ${p.briefingDate
               ? `<span class="briefing-status-tag ${briefPassed?'passed':'upcoming'}">${briefPassed?'지남':'예정'}</span>
                  <button class="briefing-clear-btn"
                    onclick="event.stopPropagation();setBriefingDate(${p.id}, '')"
-                   title="현설일자 삭제">×</button>`
-              : `<span style="font-size:11px;color:#92400e;font-weight:600;">미입력 — 공고문의 현장설명회 일자를 입력하면 카드에 표시됩니다</span>`}
+                   title="현설일자·시간 삭제">×</button>`
+              : `<span style="font-size:11px;color:#92400e;font-weight:600;flex-basis:100%;">미입력 — 공고문의 현장설명회 일자(·시간)를 입력하면 카드에 표시됩니다</span>`}
           </div>`
         : (p.briefingDate
             ? `<div class="briefing-edit-row${briefPassed?' passed':''}" onclick="event.stopPropagation()">
-                <span class="briefing-edit-lbl">📢 현장설명회 일자</span>
-                <span style="font-size:13px;color:var(--t);font-weight:700;">${fmtDate(p.briefingDate)}</span>
+                <span class="briefing-edit-lbl">📢 현장설명회</span>
+                <span style="font-size:13px;color:var(--t);font-weight:700;">${fmtDate(p.briefingDate)}${p.briefingTime?' '+p.briefingTime:''}</span>
                 <span class="briefing-status-tag ${briefPassed?'passed':'upcoming'}">${briefPassed?'지남':'예정'}</span>
               </div>`
             : '')}
