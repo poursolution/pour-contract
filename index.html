@@ -1032,6 +1032,264 @@ body{font-family:-apple-system,'Malgun Gothic','Apple SD Gothic Neo','맑은 고
   font-family:inherit;font-weight:600;margin-left:6px;transition:all .12s;}
 .btn-edit-co:hover{background:var(--blue-l);color:var(--blue);border-color:var(--blue-m);}
 
+/* v18: 헤더 버튼 wrapper - 데스크탑에선 투명 (각 버튼이 원래 위치 유지) */
+.hd-buttons-row{display:contents;}
+
+/* v17/v18: 현설 일자·시간 modal 입력 (데스크탑) */
+.brief-modal-row{gap:8px;}
+.brief-modal-date{flex:2;}
+.brief-modal-time{flex:1;max-width:80px;}
+.brief-modal-hint{flex-shrink:0;}
+
+/* ════════════════════════════════════════════════════════════════════ */
+/* ════════════ v18: 모바일 화면 최적화 (≤768px) ════════════════════════ */
+/* ════════════════════════════════════════════════════════════════════ */
+
+/* ── 태블릿 (≤1024px) ───────────────────────────────────── */
+@media (max-width: 1024px){
+  .hd{padding:0 18px;gap:10px;}
+  .ct{padding:20px 18px;}
+  .stat{padding:0 12px;}
+  .btn-folder{max-width:200px;}
+  .btn-folder .bf-path{max-width:130px;}
+}
+
+/* ── 모바일 (≤768px) ────────────────────────────────────── */
+@media (max-width: 768px){
+  /* ─── 헤더: 2단 구성 (위: 로고+버튼, 아래: 통계) ─── */
+  .hd{
+    flex-wrap:wrap;height:auto;min-height:auto;padding:10px 12px;gap:8px;
+    flex-direction:column;align-items:stretch;
+  }
+  .hd > .logo-box{order:1;}
+  .hd > .hd-stats{order:3;margin-left:0;justify-content:space-between;
+    width:100%;border-top:1px solid var(--b);padding-top:8px;}
+  .hd > .btn-folder,
+  .hd > .btn-coman,
+  .hd > .btn-patent,
+  .hd > .btn-new{order:2;margin-left:0;}
+
+  /* 로고 영역 - 한 줄로 압축 */
+  .logo-box{justify-content:flex-start;flex:1;min-width:0;}
+  .logo-ico{width:32px;height:32px;}
+  .logo-ico svg{width:18px;height:18px;}
+  .hd-title{font-size:13px;letter-spacing:-.3px;}
+  .hd-sub{font-size:9px;}
+  .fb-status{font-size:9px;padding:2px 6px;}
+
+  /* 헤더 우측 버튼들 - 한 줄에 가로 스크롤 또는 wrap */
+  .hd-buttons-row{
+    display:flex;flex-wrap:wrap;gap:6px;width:100%;order:2;
+  }
+  .btn-folder,.btn-coman,.btn-patent,.btn-new{
+    padding:7px 10px;font-size:11.5px;flex:1;min-width:0;
+    justify-content:center;white-space:nowrap;
+  }
+  .btn-folder{max-width:none;flex:2;}
+  .btn-folder .bf-path{max-width:none;font-size:11px;}
+  .btn-new{flex:1.2;}
+
+  /* 통계 박스 - 균등 분할 */
+  .hd-stats{gap:0;display:grid;grid-template-columns:repeat(5,1fr);}
+  .stat{padding:0 4px;}
+  .stat-n{font-size:15px;}
+  .stat-l{font-size:8px;letter-spacing:.04em;}
+
+  /* ─── 콘텐츠 영역 ─── */
+  .ct{padding:14px 12px;}
+  .ct-hd{margin-bottom:14px;gap:8px;flex-wrap:wrap;}
+  .ct-hd h2{font-size:14px;}
+  .ct-hd-badge{font-size:10px;padding:2px 8px;}
+
+  /* ─── 탭 ─── */
+  .tabs{padding:4px;gap:2px;overflow-x:auto;flex-wrap:nowrap;
+    -webkit-overflow-scrolling:touch;scrollbar-width:none;}
+  .tabs::-webkit-scrollbar{display:none;}
+  .tab{padding:7px 11px;font-size:11.5px;flex-shrink:0;letter-spacing:-.3px;}
+  .tab-badge{font-size:10px;padding:1px 6px;margin-left:3px;}
+
+  /* 검색 박스 */
+  .search-box-wrap{flex-wrap:wrap;}
+  .search-box{font-size:13px;padding:8px 12px;}
+
+  /* ─── 카드 그리드 — 모바일 1열 ─── */
+  .proj-grid{grid-template-columns:1fr;gap:10px;}
+
+  /* ─── 미니카드 (그리드 셀) ─── */
+  .mcard{padding:12px 13px;gap:7px;}
+  .mcard-row1{gap:6px;flex-wrap:wrap;}
+  .mcard-row2{gap:8px;}
+  .mcard-row3{gap:8px;font-size:11px;}
+  .mcard-name{font-size:13.5px;}
+  .mcard-progress{font-size:11px;}
+  .mcard-deadline{font-size:11px;}
+  .mcard-co-count{font-size:11px;}
+  .d-badge{min-width:48px;height:26px;font-size:10px;}
+  .proj-status{font-size:10px;padding:2px 7px;}
+  .mcard-briefing{font-size:10px;padding:2px 6px;}
+
+  /* ─── 모달 (현장 등록 등) ─── */
+  .modal-bg{padding:10px;align-items:flex-start;padding-top:30px;}
+  .modal{padding:20px 18px;max-width:100%;border-radius:14px;}
+  .modal h3{font-size:15px;margin-bottom:18px;}
+  .m-lbl{font-size:10px;margin-bottom:6px;}
+  .m-inp{padding:10px 12px;font-size:13px;margin-bottom:14px;}
+  .date-row{gap:6px;margin-bottom:14px;flex-wrap:wrap;}
+  .date-sel{padding:9px 24px 9px 10px;font-size:12.5px;flex:1;min-width:0;}
+  .date-sep{font-size:12px;}
+  .time-inp{padding:9px 12px;font-size:13px;width:70px !important;}
+  .time-hint{font-size:11px;}
+  /* 현설 modal row - 모바일에서는 한 줄에 맞추되 wrap 허용 */
+  .brief-modal-row{flex-wrap:wrap;gap:7px;}
+  .brief-modal-date{flex:1 1 100%;}
+  .brief-modal-time{flex:0 0 70px !important;max-width:70px;width:auto !important;}
+  .brief-modal-hint{font-size:11px;color:var(--tm);}
+  .m-btns{flex-wrap:wrap;gap:8px;}
+  .m-btn{flex:1;padding:11px;font-size:13px;}
+
+  /* ─── 카드 상세 모달 ─── */
+  .dt-overlay{padding:10px;align-items:flex-start;padding-top:14px;}
+  .dt-modal{max-width:100%;border-radius:14px;}
+  .dt-close{top:8px;right:8px;width:30px;height:30px;font-size:16px;}
+  .dt-content{padding:4px;}
+
+  /* 카드 헤더 (상세 모달 내부) */
+  .pcard-hd{padding:14px 14px;gap:9px;}
+  .pc-name{font-size:14px;}
+  .pc-deadline{font-size:11px;margin-top:3px;}
+  .pc-meta{flex-wrap:wrap;gap:6px;}
+  .pc-prog-bar{width:60px;}
+  .pc-prog-txt{font-size:11px;}
+  .pc-patents{padding:0;gap:4px;}
+  .pc-pat-chip{font-size:9.5px;padding:1px 7px;}
+  .pc-briefing-inline{font-size:10px;padding:1px 6px;}
+
+  /* 현설일자 편집 영역 - 모바일 세로 정렬 */
+  .briefing-edit-row{margin:8px 10px 4px;padding:10px 12px;gap:7px;}
+  .briefing-edit-lbl{font-size:11px;width:100%;}
+  .briefing-edit-inp{padding:7px 9px;font-size:12px;flex:1;min-width:0;}
+  .briefing-edit-inp[type="date"]{min-width:120px;flex-basis:55%;}
+  .briefing-edit-inp.briefing-time-inp{width:50px;flex:0 0 50px;}
+  .briefing-status-tag{font-size:10px;padding:2px 6px;}
+  .briefing-clear-btn{width:24px;height:24px;font-size:13px;}
+
+  /* 발행 방식 설정 영역 */
+  .pat-config{padding:12px 14px;}
+  .pat-config-top{gap:7px;margin-bottom:11px;}
+  .pat-config-label{font-size:10.5px;}
+  .mode-btn{padding:7px 12px;font-size:11.5px;}
+  .batch-list,.pour-list{grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:6px;}
+
+  /* 시공사 행 */
+  .con-row{border-radius:8px;}
+  .con-row-hd{padding:10px 11px;gap:7px;flex-wrap:wrap;}
+  .con-name{font-size:12.5px;}
+  .con-row-hd input[type="text"]{font-size:12.5px;}
+
+  /* 발행 진행률 바 */
+  .pc-prog{gap:5px;}
+
+  /* ─── 미리보기 모달 ─── */
+  .pv-overlay{padding:8px;}
+  .pv-modal{max-width:100%;width:100%;border-radius:14px;max-height:96vh;}
+  .pv-hd{padding:12px 14px;}
+  .pv-title{font-size:14px;}
+  .pv-body{padding:10px;}
+  .pv-meta{flex-wrap:wrap;gap:7px;padding:8px;}
+  .pv-meta-item{flex:1;min-width:calc(50% - 7px);}
+  .pv-meta-label{font-size:9.5px;}
+  .pv-meta-value{font-size:11.5px;}
+  .pv-list-item{padding:8px 10px;font-size:11.5px;flex-wrap:wrap;}
+  .pv-img-wrap img{max-width:100%;height:auto;}
+  .pv-footer{padding:10px 12px;flex-wrap:wrap;gap:6px;}
+  .pv-cancel-btn,.pv-download-btn{flex:1;padding:11px;font-size:13px;}
+
+  /* ─── 업체 관리 / 특허 관리 모달 ─── */
+  .pm-overlay{padding:8px;align-items:flex-start;padding-top:10px;}
+  .pm-modal{max-width:100%;width:100%;border-radius:14px;max-height:95vh;}
+  .pm-hd{padding:12px 14px;flex-wrap:wrap;gap:8px;}
+  .pm-title{font-size:14px;}
+  .pm-bd{padding:10px;}
+
+  /* 특허/업체 관리 그리드 - 1열 */
+  .agr-grid{grid-template-columns:1fr;gap:6px;}
+  .pat-card,.co-card{padding:10px;}
+
+  /* 토스트 */
+  .toast{font-size:12px;padding:10px 14px;max-width:calc(100% - 30px);
+    left:15px;right:15px;transform:translateX(0);bottom:15px;}
+  .toast.open{transform:translateY(0);}
+
+  /* Firebase 상태 표시 */
+  #fb-status{margin-left:6px;font-size:9px;padding:1px 6px;}
+
+  /* PDF 미리보기 이미지가 매우 클 때 */
+  .pv-img-wrap{padding:6px;}
+}
+
+/* ── 소형 모바일 (≤480px) ─────────────────────────────── */
+@media (max-width: 480px){
+  /* 헤더 - 한층 더 압축 */
+  .hd{padding:8px 10px;gap:6px;}
+  .hd-title{font-size:12px;}
+  .hd-sub{font-size:8px;}
+  .stat-n{font-size:13.5px;}
+  .stat-l{font-size:7.5px;}
+
+  /* 버튼 - 아이콘 위주 */
+  .btn-folder,.btn-coman,.btn-patent,.btn-new{padding:7px 6px;font-size:10.5px;}
+
+  /* 콘텐츠 패딩 더 축소 */
+  .ct{padding:10px 10px;}
+
+  /* 카드 더 컴팩트 */
+  .mcard{padding:10px 11px;}
+  .mcard-name{font-size:12.5px;}
+  .mcard-row3{font-size:10.5px;}
+  .mcard-briefing{font-size:9.5px;}
+
+  /* 모달 - 풀스크린에 가깝게 */
+  .modal-bg{padding:0;padding-top:10px;align-items:flex-start;}
+  .modal{padding:18px 14px;border-radius:14px 14px 0 0;
+    min-height:calc(100vh - 10px);max-height:none;}
+  .modal h3{font-size:14px;margin-bottom:14px;}
+
+  .dt-overlay{padding:0;padding-top:6px;}
+  .dt-modal{border-radius:14px 14px 0 0;min-height:calc(100vh - 6px);}
+
+  /* 탭 - 더 컴팩트 */
+  .tab{padding:6px 9px;font-size:11px;}
+
+  /* 발행대기 카운트 배지 */
+  .qbar{font-size:11px;padding:8px 12px;}
+
+  /* 검색박스 */
+  .search-box{font-size:12px;padding:7px 11px;}
+
+  /* 시공사 행 - 모바일 - 액션 버튼 작게 */
+  .con-row-hd{padding:9px 10px;gap:6px;}
+  .con-name{font-size:12px;}
+  .con-row-hd button{padding:5px 9px !important;font-size:10.5px !important;}
+
+  /* 패턴 그리드 매우 좁게 */
+  .batch-list,.pour-list{grid-template-columns:repeat(2,1fr);}
+
+  /* 통계 - 일부 숨김 옵션 */
+  .hd-stats{grid-template-columns:repeat(5,1fr);}
+}
+
+/* ── 모바일에서 터치 친화적 인터랙션 ─── */
+@media (hover: none) and (pointer: coarse){
+  /* hover 효과 제거 - 클릭만으로 동작 */
+  .mcard:hover{transform:none;}
+  .pcard:hover,.pcard.expanded{box-shadow:var(--shadow);}
+  .btn-new:hover,.btn-folder:hover,.btn-coman:hover,.btn-patent:hover{transform:none;}
+  /* 터치 타겟 최소 크기 */
+  button,.tab{min-height:38px;}
+  /* 작은 닫기 버튼 등은 예외 - 명시적 크기 유지 */
+  .dt-close,.briefing-clear-btn,.bf-clear{min-height:auto;}
+}
+
 </style>
 </head>
 <body>
@@ -1063,13 +1321,15 @@ body{font-family:-apple-system,'Malgun Gothic','Apple SD Gothic Neo','맑은 고
     <div class="stat"><div class="stat-n" id="st-done" style="color:var(--green)">0</div><div class="stat-l">발행완료</div></div>
     <div class="stat"><div class="stat-n" id="st-pend" style="color:var(--tm)">0</div><div class="stat-l">미발행</div></div>
   </div>
-  <button class="btn-folder" id="btn-pdf-folder" onclick="onPdfFolderClick(event)" title="PDF 저장폴더 설정 — 발행 시 현장별 하위폴더로 자동 저장">
-    <span class="bf-ico">📁</span>
-    <span class="bf-path" id="pdf-folder-label">저장폴더 미설정</span>
-  </button>
-  <button class="btn-coman" onclick="openContractorManager()">📇 업체 관리</button>
-  <button class="btn-patent" onclick="openPatentManager()">📋 특허 관리</button>
-  <button class="btn-new" onclick="openModal()">＋ 현장 추가</button>
+  <div class="hd-buttons-row">
+    <button class="btn-folder" id="btn-pdf-folder" onclick="onPdfFolderClick(event)" title="PDF 저장폴더 설정 — 발행 시 현장별 하위폴더로 자동 저장">
+      <span class="bf-ico">📁</span>
+      <span class="bf-path" id="pdf-folder-label">저장폴더 미설정</span>
+    </button>
+    <button class="btn-coman" onclick="openContractorManager()">📇 업체 관리</button>
+    <button class="btn-patent" onclick="openPatentManager()">📋 특허 관리</button>
+    <button class="btn-new" onclick="openModal()">＋ 현장 추가</button>
+  </div>
 </header>
 
 <!-- CONTENT -->
@@ -1142,12 +1402,12 @@ body{font-family:-apple-system,'Malgun Gothic','Apple SD Gothic Neo','맑은 고
       onkeydown="if(event.key==='Enter')confirmModal()">
     <div class="m-lbl">📢 현장설명회 일자 · 시간 (선택)</div>
     <div class="datetime-wrap">
-      <div class="date-row" style="gap:8px;">
-        <input class="m-inp" type="date" id="m-brief"
-          style="cursor:pointer;color-scheme:light;margin-bottom:0;flex:2;">
-        <input class="time-inp" type="number" id="m-brief-time" placeholder="시"
-          min="0" max="23" style="flex:1;max-width:80px;">
-        <span class="time-hint" style="flex-shrink:0;">시 (0~23)</span>
+      <div class="date-row brief-modal-row">
+        <input class="m-inp brief-modal-date" type="date" id="m-brief"
+          style="cursor:pointer;color-scheme:light;margin-bottom:0;">
+        <input class="time-inp brief-modal-time" type="number" id="m-brief-time" placeholder="시"
+          min="0" max="23">
+        <span class="time-hint brief-modal-hint">시 (0~23)</span>
       </div>
     </div>
     <div class="m-lbl">발행 마감일 · 시간</div>
