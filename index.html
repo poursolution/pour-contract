@@ -895,14 +895,27 @@ body{font-family:-apple-system,'Malgun Gothic','Apple SD Gothic Neo','맑은 고
   background:rgba(217,119,6,.12);padding:2px 8px;border-radius:5px;
   display:inline-flex;align-items:center;gap:4px;letter-spacing:-.2px;
   border:1px solid rgba(217,119,6,.25);}
-.mcard-briefing.passed{background:#d97706;color:#fff;border-color:#b45309;}
+/* v19: 현설일자 "지남" → 회색 텍스트로 변경 (강조 제거)
+   단, briefing-overdue 카드(영업담당자 알림용) 안에서는 여전히 강조 유지 */
+.mcard-briefing.passed{background:transparent;color:var(--tm);
+  border-color:transparent;font-weight:500;padding:1px 2px;}
 .mcard.briefing-overdue .mcard-briefing{background:#92400e;color:#fff;
-  border-color:#78350f;box-shadow:0 1px 3px rgba(120,53,15,.3);}
+  border-color:#78350f;box-shadow:0 1px 3px rgba(120,53,15,.3);
+  font-weight:700;padding:2px 8px;}
+
+/* v19: 시간 마감 뱃지 (D-Day 옆 - 동일 색상) */
+.t-badge{flex-shrink:0;height:26px;padding:0 11px;border-radius:6px;
+  display:inline-flex;align-items:center;gap:3px;font-size:10.5px;
+  font-weight:800;letter-spacing:-.3px;white-space:nowrap;}
+.t-badge .t-ico{font-size:10px;opacity:.65;}
+/* d-over/d-warn/d-ok/d-none 색상 클래스는 그대로 재사용됨 (배경+색+테두리) */
 
 /* 카드 1행: 마감 뱃지 + 상태 뱃지 + 완료마크 */
 .mcard-row1{display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
 .mcard .d-badge{padding:2px 7px;font-size:10.5px;border-radius:5px;font-weight:700;
   flex-shrink:0;}
+.mcard .t-badge{height:auto;padding:2px 8px;font-size:10.5px;border-radius:5px;
+  font-weight:700;}
 .mcard .proj-status{margin:0;font-size:10px;padding:2px 8px;}
 .mcard-completed-mark{margin-left:auto;width:22px;height:22px;border-radius:50%;
   background:var(--green);color:#fff;display:flex;align-items:center;
@@ -920,9 +933,10 @@ body{font-family:-apple-system,'Malgun Gothic','Apple SD Gothic Neo','맑은 고
 /* 카드 3행: 마감일 텍스트 + 업체수 */
 .mcard-row3{display:flex;align-items:center;gap:8px;font-size:11px;color:var(--tm);
   font-weight:600;}
-.mcard-deadline{flex:1;}
+/* v19: 마감일자 - 단색 초록 글씨 (시간뱃지가 긴급도 색상을 담당) */
+.mcard-deadline{flex:1;color:var(--green);font-weight:600;letter-spacing:-.2px;}
 .mcard-co-count{background:var(--s2);padding:2px 8px;border-radius:5px;
-  font-size:10.5px;font-weight:700;}
+  font-size:10.5px;font-weight:700;color:var(--tm);}
 
 /* 카드 4행: 메일 미확인 업체명 (빨간 글씨) */
 .mcard-warn{padding:6px 8px;background:#fef2f2;border:1px dashed #fca5a5;
@@ -1125,6 +1139,7 @@ body{font-family:-apple-system,'Malgun Gothic','Apple SD Gothic Neo','맑은 고
   .mcard-deadline{font-size:11px;}
   .mcard-co-count{font-size:11px;}
   .d-badge{min-width:48px;height:26px;font-size:10px;}
+  .mcard .t-badge{font-size:10px;padding:2px 7px;}  /* v19: 시간 뱃지 모바일 사이즈 */
   .proj-status{font-size:10px;padding:2px 7px;}
   .mcard-briefing{font-size:10px;padding:2px 6px;}
 
@@ -3283,9 +3298,15 @@ function renderMiniCard(p, isCompleted=false){
     ? `<span class="proj-status ps-mss">📦 자재공급승인원</span>`
     : '';
 
+  // v19: 시간 마감 뱃지 (D-Day 옆 - 동일 색상 cls 재사용)
+  const timeBadgeHtml = (p.deadline && p.deadlineTime)
+    ? `<div class="t-badge ${cls}" title="${escH(p.deadlineTime)} 마감">⏰ ${escH(p.deadlineTime)}마감</div>`
+    : '';
+
   return `<div class="mcard${completedCls}${lockedCls}${briefOverdueCls}" onclick="openProjectDetail(${p.id})" data-pid="${p.id}">
     <div class="mcard-row1">
       <div class="d-badge ${cls}">${label}</div>
+      ${timeBadgeHtml}
       ${statusBadge}
       ${patentNeedBadge}
       ${mssBadge}
