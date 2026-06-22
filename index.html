@@ -138,6 +138,48 @@ body{font-family:-apple-system,'Malgun Gothic','Apple SD Gothic Neo','맑은 고
 
 /* ── CONTENT ── */
 .ct{flex:1;padding:28px 32px;max-width:1260px;width:100%;margin:0 auto}
+
+/* ════════ v26: 오늘 마감 알림 배너 ════════ */
+.dl-alert{margin-bottom:18px;border-radius:13px;padding:14px 16px;
+  border:1.5px solid var(--b);background:var(--s1);box-shadow:var(--shadow);
+  animation:dlFadeIn .25s ease}
+@keyframes dlFadeIn{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+/* 등급별 배너 강조 */
+.dl-alert.lvl-normal{border-color:var(--blue-m);background:var(--blue-l)}
+.dl-alert.lvl-early{border-color:#f6c177;background:var(--yellow-l)}
+.dl-alert.lvl-imminent{border-color:#f0a8a8;background:var(--red-l)}
+.dl-alert-hd{display:flex;align-items:center;gap:9px;margin-bottom:10px;flex-wrap:wrap}
+.dl-alert-ico{font-size:17px;line-height:1}
+.dl-alert.lvl-imminent .dl-alert-ico{animation:dlPulse 1.1s ease-in-out infinite}
+@keyframes dlPulse{0%,100%{opacity:1}50%{opacity:.35}}
+.dl-alert-title{font-size:14px;font-weight:800;letter-spacing:-.3px}
+.dl-alert.lvl-normal .dl-alert-title{color:var(--blue)}
+.dl-alert.lvl-early .dl-alert-title{color:var(--yellow)}
+.dl-alert.lvl-imminent .dl-alert-title{color:var(--red)}
+.dl-alert-sub{font-size:11px;font-weight:700;color:var(--red);
+  background:#fff;border:1px solid #f0a8a8;border-radius:20px;padding:2px 9px}
+.dl-alert-list{display:flex;flex-direction:column;gap:6px}
+.dl-row{display:flex;align-items:center;gap:9px;flex-wrap:wrap;
+  background:#fff;border:1px solid var(--b);border-radius:9px;
+  padding:8px 12px;cursor:pointer;transition:all .15s}
+.dl-row:hover{border-color:var(--blue);transform:translateX(2px);
+  box-shadow:0 2px 8px rgba(0,0,0,.06)}
+.dl-row .dl-time{font-size:12.5px;font-weight:800;color:var(--green);
+  white-space:nowrap;letter-spacing:-.2px}
+.dl-row.early .dl-time{color:#9a3412}
+.dl-row.imminent{border-color:#f0a8a8;background:var(--red-l)}
+.dl-row.imminent .dl-time{color:var(--red)}
+.dl-row .dl-name{font-size:13px;font-weight:700;color:var(--t);
+  flex:1;min-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dl-tag-early{font-size:10.5px;font-weight:800;color:#9a3412;
+  background:#fed7aa;border-radius:6px;padding:2px 7px;white-space:nowrap}
+.dl-left{font-size:11px;font-weight:800;color:#fff;background:var(--red);
+  border-radius:20px;padding:2px 10px;white-space:nowrap}
+@media (max-width:560px){
+  .dl-alert{padding:12px 12px;margin-bottom:14px}
+  .dl-row{padding:7px 10px;gap:7px}
+  .dl-row .dl-name{min-width:90px;font-size:12.5px}
+}
 .ct-hd{display:flex;align-items:center;gap:12px;margin-bottom:22px}
 .ct-hd h2{font-size:15px;font-weight:800}
 .ct-hd-badge{font-size:11px;font-weight:700;background:var(--blue-l);color:var(--blue);
@@ -1421,6 +1463,9 @@ body{font-family:-apple-system,'Malgun Gothic','Apple SD Gothic Neo','맑은 고
       ✓ 완료현장 <span class="tab-badge" id="tab-cnt-done">0</span>
     </button>
   </div>
+
+  <!-- v26: 오늘 마감 알림 배너 (마감시간 임박순 / 조기마감 주의) -->
+  <div id="deadline-alert" class="dl-alert" style="display:none"></div>
 
   <div class="ct-hd">
     <h2 id="ct-hd-title">현장 목록</h2>
@@ -3178,6 +3223,9 @@ function renderAll(){
   // v14: 마감 지난 현장 별도 섹션 제거 — 완료현장 탭으로 통합됨
   const doneSection=document.getElementById('done-section');
   if(doneSection) doneSection.style.display='none';
+
+  // v26: 오늘 마감 알림 배너 갱신
+  renderDeadlineAlert();
 
   // v13: 모달이 열려 있으면 모달 내용도 같이 갱신
   if(typeof _refreshDetailIfOpen === 'function') _refreshDetailIfOpen();
@@ -5003,6 +5051,83 @@ function updateStats(){
   const qEl = document.getElementById('st-queued');
   if(qEl) qEl.textContent = tq;
 }
+// ════════ v26: 오늘 마감 알림 배너 ════════
+// 로컬 기준 오늘 날짜 (deadline 저장 포맷과 동일: YYYY-MM-DD)
+function _todayStr(){
+  const d=new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+// 마감 시각(시). deadlineTime 지정 시 그 시각, 미지정 시 기본 17시로 간주
+function _dlHour(p){
+  if(p.deadlineTime){
+    const h=parseInt(String(p.deadlineTime).replace(/[^0-9]/g,''));
+    if(!isNaN(h)) return h;
+  }
+  return 17; // 기본 마감 시각
+}
+function renderDeadlineAlert(){
+  const box=document.getElementById('deadline-alert');
+  if(!box) return;
+  const today=_todayStr();
+  const now=new Date();
+
+  // 오늘 마감 + 미완료 + 미유찰 + 아직 마감시각 안 지난 현장만
+  const items = projects.filter(p=>{
+      if(p.deadline!==today) return false;   // 오늘 마감만
+      if(p.bidFailed) return false;          // 유찰 처리된 건 제외
+      if(isAllIssuedDone(p)) return false;   // 이미 전부 발행 완료 → 알림 불필요
+      if(isExpired(p)) return false;         // 이미 마감 시각 지남
+      return true;
+    })
+    .map(p=>{
+      const h=_dlHour(p);
+      const dl=new Date(); dl.setHours(h,0,0,0);      // 오늘 그 시각 0분
+      const minsLeft=Math.round((dl-now)/60000);
+      const early = !!p.deadlineTime && h<17;          // 17시보다 이른 마감 = 조기마감 주의
+      return {p,h,minsLeft,early};
+    })
+    .sort((a,b)=> (a.h-b.h) || (a.minsLeft-b.minsLeft)); // 마감 빠른 순(임박순)
+
+  if(!items.length){ box.style.display='none'; box.innerHTML=''; box.className='dl-alert'; return; }
+
+  const hasImminent = items.some(it=>it.minsLeft<=120);  // 마감 2시간 이내
+  const hasEarly    = items.some(it=>it.early);
+  const lvl = hasImminent ? 'imminent' : (hasEarly ? 'early' : 'normal');
+
+  const rows = items.map(it=>{
+    const p=it.p;
+    const imminent = it.minsLeft<=120;
+    // 잔여시간 문구 (2시간 이내일 때만)
+    let leftBadge='';
+    if(imminent){
+      let txt;
+      if(it.minsLeft<=0) txt='마감 임박';
+      else {
+        const hh=Math.floor(it.minsLeft/60), mm=it.minsLeft%60;
+        txt = hh>0 ? `${hh}시간 ${mm}분 후` : `${mm}분 후`;
+      }
+      leftBadge=`<span class="dl-left">${txt}</span>`;
+    }
+    const rowCls = imminent ? 'dl-row imminent' : (it.early ? 'dl-row early' : 'dl-row');
+    const earlyTag = it.early ? '<span class="dl-tag-early">⚠ 시간주의</span>' : '';
+    return `<div class="${rowCls}" onclick="openProjectDetail(${p.id})" title="클릭하면 현장 상세로 이동">`
+      + `<span class="dl-time">${it.h}시 마감</span>`
+      + `<span class="dl-name">${escH(p.name||'(이름없음)')}</span>`
+      + earlyTag + leftBadge
+      + `</div>`;
+  }).join('');
+
+  box.className='dl-alert lvl-'+lvl;
+  box.style.display='block';
+  box.innerHTML =
+    `<div class="dl-alert-hd">`
+    + `<span class="dl-alert-ico">⏰</span>`
+    + `<span class="dl-alert-title">오늘 마감 ${items.length}건</span>`
+    + (hasEarly ? `<span class="dl-alert-sub">17시 이전 조기마감 포함 — 마감시간 확인</span>` : '')
+    + `</div>`
+    + `<div class="dl-alert-list">${rows}</div>`;
+}
+
 function ddayInfo(dl){
   if(!dl) return{label:'날짜없음',cls:'d-none'};
   const t=new Date();t.setHours(0,0,0,0);
@@ -5360,6 +5485,11 @@ function handleExcelUpload(ev){
   // 첫 렌더
   renderAll();
   updateQbar();
+
+  // v26: 마감 알림 배너는 시간 경과에 따라 상태가 바뀌므로 1분마다 재계산
+  setInterval(function(){
+    if(typeof renderDeadlineAlert === 'function') renderDeadlineAlert();
+  }, 60000);
 
   // done-section 상태 UI 반영
   const doneToggleBtn = document.getElementById('done-toggle');
