@@ -4955,7 +4955,11 @@ async function capturePDF(p, c, pat, returnBlob){
   const {jsPDF}=window.jspdf;
   const pdf=new jsPDF({orientation:'p',unit:'mm',format:'a4'});
   const A4_W=210, A4_H=297;
-  pdf.addImage(canvas.toDataURL('image/png'),'PNG',0,0,A4_W,A4_H);
+  // v25: PNG → JPEG 로 변경. jsPDF가 PNG 임베드 시 PDF1.3 문서에 SMask(투명 마스크)를
+  // 붙이는데, 일부 뷰어(관공서/전자입찰 내장뷰어 등)에서 이 조합이 "화면 공란, 인쇄는 정상"
+  // 증상을 유발함. JPEG 는 알파채널이 없어 SMask 가 생성되지 않아 모든 뷰어에서 정상 표시됨.
+  // (부가효과: 파일용량 약 1/10로 감소 → 첨부 업로드 안정성↑)
+  pdf.addImage(canvas.toDataURL('image/jpeg',0.95),'JPEG',0,0,A4_W,A4_H);
   // v24: 파일명은 기존 형식 유지 (특허번호_현장명_시공사명), 마감일 prefix는 폴더명에만
   const filename = `${patLabel(pat)}_${p.name}_${denormalizeCo(c.name)}.pdf`;
   if(returnBlob){
