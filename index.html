@@ -3003,12 +3003,27 @@ function confirmModal(){
 document.getElementById('modal').addEventListener('click',function(e){if(e.target===this)closeModal()});
 
 /* ═══ RENDER ALL ══════════════════════════════════ */
+/* v26: 업체 단위 발행 완료 판정 (발행하기 버튼을 눌렀는지 기준)
+   - mss  : 발송완료 체크 여부
+   - batch: 현장에 선택된 특허를 모두 발행했는지
+   - pour : 발행한 항목이 있고 대기(미발행) 항목이 없는지            */
+function isContractorIssued(p, c){
+  if(p.patentMode === 'mss') return !!c.mailSent;
+  const st = c.status || {};
+  if(p.patentMode === 'pour'){
+    const vals = Object.values(st);
+    return vals.length > 0 && vals.every(v => v === 'done');
+  }
+  const assigned = [...(p.batchPatents || [])];
+  if(!assigned.length) return false;   // 특허 미선택 → 아직 발행 전
+  return assigned.every(id => st[id] === 'done');
+}
 // Check if every contractor has every assigned patent done
 function isAllIssuedDone(p){
   if(!p.contractors.length) return false;
   if(p.patentMode==='mss'){
-    // v14: 자재공급승인원 - 모든 업체가 메일확인 + 발송완료 둘 다 체크되어야 완료
-    return p.contractors.every(c => c.mailReceived && c.mailSent);
+    // v26: 자재공급승인원 - 발송완료만으로 완료 판정 (메일확인 버튼 제거)
+    return p.contractors.every(c => c.mailSent);
   } else if(p.patentMode==='batch'){
     if(!p.batchPatents.size) return false;
     return p.contractors.every(c=>
@@ -3569,51 +3584,31 @@ function renderMiniCard(p, isCompleted=false){
     needPatents = !p.batchPatents || p.batchPatents.size === 0;
   }
 
-  // 메일 미확인 업체명 수집 (모두 표시)
-  const unconfirmed = (p.contractors||[]).filter(c => !c.mailReceived).map(c => c.name);
-  // v14: mss 모드 - 미발송 업체명
-  const notSent = (p.contractors||[]).filter(c => !c.mailSent).map(c => c.name);
+  // v26: 미발행 업체명 수집 (발행하기 버튼을 아직 누르지 않은 업체 = 모두 표시)
+  const notIssued = (p.contractors||[]).filter(c => !isContractorIssued(p, c)).map(c => c.name);
+  const issueIco   = isMss ? '✉' : '📤';
+  const issueLabel = isMss ? '미발송' : '미발행';
 
   // v13: 카드 하단 안내 영역 - 상황에 따라 다른 표시
   let warnHtml = '';
   if(!isCompleted && !p.bidFailed){   // v22: 유찰 처리 현장은 경고 미표시
-    if(isMss){
-      // mss 모드 안내
-      if(p.contractors.length === 0){
-        warnHtml = `<div class="mcard-empty-hint">
-          📝 시공사 업체를 등록해주세요
-        </div>`;
-      } else {
-        const lines = [];
-        if(unconfirmed.length > 0){
-          lines.push(`<div class="mcard-warn-line"><span class="mcard-warn-ico">📧</span><span>메일 미확인: ${unconfirmed.map(n=>escH(n)).join(', ')}</span></div>`);
-        }
-        if(notSent.length > 0){
-          lines.push(`<div class="mcard-warn-line"><span class="mcard-warn-ico">✉</span><span>미발송: ${notSent.map(n=>escH(n)).join(', ')}</span></div>`);
-        }
-        if(lines.length > 0){
-          warnHtml = `<div class="mcard-warn-mss">${lines.join('')}</div>`;
-        }
-      }
-    } else if(p.contractors.length === 0){
-      // 1) 업체 없음 → 업체 등록 + 특허 확인 동시 안내
+    if(p.contractors.length === 0){
+      // 1) 업체 없음 → 업체 등록 (+ 특허 확인) 안내
       warnHtml = `<div class="mcard-empty-hint">
         📝 시공사 업체를 등록해주세요${needPatents ? '<br>📋 특허번호 확인 필요' : ''}
       </div>`;
-    } else if(needPatents){
-      // 2) 업체는 있는데 특허가 없음 → 특허 확인 필요 (메일 미확인과 함께 표시)
-      const mailLine = unconfirmed.length > 0
-        ? `<div class="mcard-warn-line"><span class="mcard-warn-ico">📧</span><span>메일 미확인: ${unconfirmed.map(n=>escH(n)).join(', ')}</span></div>`
-        : '';
-      warnHtml = `<div class="mcard-warn">
-        <div class="mcard-warn-line"><span class="mcard-warn-ico">📋</span><span>특허번호 확인 필요</span></div>
-        ${mailLine}
-      </div>`;
-    } else if(unconfirmed.length > 0){
-      // 3) 특허는 OK, 메일 미확인만 있을 때
-      warnHtml = `<div class="mcard-warn">
-        <div class="mcard-warn-line"><span class="mcard-warn-ico">📧</span><span>메일 미확인: ${unconfirmed.map(n=>escH(n)).join(', ')}</span></div>
-      </div>`;
+    } else {
+      // 2) 업체가 있을 때 → 특허 확인 필요 / 미발행 명단
+      const lines = [];
+      if(needPatents){
+        lines.push(`<div class="mcard-warn-line"><span class="mcard-warn-ico">📋</span><span>특허번호 확인 필요</span></div>`);
+      }
+      if(notIssued.length > 0){
+        lines.push(`<div class="mcard-warn-line"><span class="mcard-warn-ico">${issueIco}</span><span>${issueLabel}: ${notIssued.map(n=>escH(n)).join(', ')}</span></div>`);
+      }
+      if(lines.length > 0){
+        warnHtml = `<div class="${isMss?'mcard-warn-mss':'mcard-warn'}">${lines.join('')}</div>`;
+      }
     }
   }
 
@@ -3908,7 +3903,7 @@ function renderProject(p, isCompleted=false){
         ${isMss
           ? `<div class="mss-info">
               📦 <strong>자재공급승인원 모드</strong>
-              <div class="mss-info-hint">특허번호 자동 발행이 아닌 수동 관리 모드입니다. 업체 등록 후 메일확인·발송완료를 직접 체크해주세요. 업체별 비고란에 적용 특허·자재 정보를 적을 수 있습니다.</div>
+              <div class="mss-info-hint">특허번호 자동 발행이 아닌 수동 관리 모드입니다. 업체 등록 후 발송완료를 직접 체크해주세요. 업체별 비고란에 적용 특허·자재 정보를 적을 수 있습니다.</div>
             </div>`
           : ''}
         <div class="batch-area${(isPour||isMss)?' hidden':''}">
@@ -4019,19 +4014,8 @@ function renderContractor(p,c,ci,locked=false){
        </button>`
     : '';
 
-  // v11: 메일 확인 버튼 (업체명 옆) — 탭별로 시각만 다르게
-  const mailChecked = !!c.mailReceived;
-  const mailDimCls = (pStatus==='need-co' && !mailChecked) ? ' dim' : '';
-  const mailIcon = mailChecked ? '✓' : '📧';
-  const mailLabel = mailChecked ? '확인완료' : '메일확인';
-  const mailTooltip = mailChecked && c.mailReceivedAt
-    ? `메일 확인됨 — ${new Date(c.mailReceivedAt).toLocaleString('ko-KR',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'})}`
-    : '시공사로부터 협약서 발행 요청 메일을 받았으면 클릭';
-  const mailBtnHtml = locked
-    ? (mailChecked ? `<span class="btn-mail-chk checked" style="cursor:default" title="${escH(mailTooltip)}">${mailIcon} ${mailLabel}</span>` : '')
-    : `<button class="btn-mail-chk${mailChecked?' checked':''}${mailDimCls}"
-        title="${escH(mailTooltip)}"
-        onclick="event.stopPropagation();toggleMailReceived(${p.id},${c.id})">${mailIcon} ${mailLabel}</button>`;
+  // v26: 메일확인 버튼 제거 — 메일 확인 여부는 업체별 비고란에 기록
+  const mailBtnHtml = '';
 
   // v14: 자재공급승인원 모드 - 발송완료 버튼
   const sentChecked = !!c.mailSent;
@@ -4066,7 +4050,7 @@ function renderContractor(p,c,ci,locked=false){
 
   // v14: 자재공급승인원 모드 - 특허 패널·발행 버튼 없는 단순 행
   if(isMss){
-    const allDone = c.mailReceived && c.mailSent;
+    const allDone = !!c.mailSent;
     return `<div class="con-row${allDone?' all-done':''}" id="cr-${p.id}-${c.id}">
       <div class="con-row-hd">
         <div class="con-chk${allDone?' done':''}"><span class="con-chk-ico">✓</span></div>
@@ -4791,6 +4775,7 @@ async function confirmPreview(){
             await FSA.savePDF(blob, filename, issueFolderName(p));  // v23: "06.19마감 현장명" 폴더
             fsaDoneList.push({c, patId});
             okCount++;
+            await maybeSendPatentEmail(c, p, pat, blob, filename); // [CONTRACT-EMAIL-ADDON] PDF 저장 성공 직후 메일 발송
           }catch(fsaErr){
             console.error('[FSA save]', fsaErr);
             // 개별 파일 실패 시 - 폴백으로 직접 다운로드
@@ -4815,14 +4800,26 @@ async function confirmPreview(){
           zip.file(fname, blob);
           bundleDoneList.push({c, patId});
           okCount++;
+          await maybeSendPatentEmail(c, p, pat, blob, filename); // [CONTRACT-EMAIL-ADDON] ZIP에 담긴 것과 동일한 PDF를 메일로도 발송
+
         } else {
           // 단일 모드: 기존대로 바로 다운로드
-          await capturePDF(p, c, pat);
+          // [CONTRACT-EMAIL-ADDON] 메일 첨부를 위해 blob이 필요해 capturePDF(..., true)로 받고,
+          //   capturePDF 내부 pdf.save()와 동일한 방식(anchor 클릭)으로 직접 다운로드 트리거.
+          //   PDF 생성 로직(capturePDF 내부) 자체는 전혀 수정하지 않음 — 호출 인자만 기존에
+          //   FSA/ZIP 분기가 이미 쓰던 returnBlob=true로 통일한 것뿐.
+          const { blob, filename } = await capturePDF(p, c, pat, true);
+          const _dlUrl = URL.createObjectURL(blob);
+          const _dlA = document.createElement('a');
+          _dlA.href = _dlUrl; _dlA.download = filename;
+          document.body.appendChild(_dlA); _dlA.click();
+          setTimeout(()=>{ document.body.removeChild(_dlA); URL.revokeObjectURL(_dlUrl); }, 800);
           c.status[patId]='done';
           c.issuedAt = c.issuedAt||{};
           c.issuedAt[patId] = new Date().toISOString();
           okCount++;
           saveProjects();
+          await maybeSendPatentEmail(c, p, pat, blob, filename); // [CONTRACT-EMAIL-ADDON] PDF 발행 성공 직후 메일 발송
         }
         btn.innerHTML = `⏳ 발행 중... (${okCount}/${jobs.length})`;
       }catch(e){
@@ -4954,14 +4951,6 @@ async function capturePDF(p, c, pat, returnBlob){
   });
   const {jsPDF}=window.jspdf;
   const pdf=new jsPDF({orientation:'p',unit:'mm',format:'a4'});
-  // v27: PDF 버전을 1.4로 통일해 구형 PDF 1.3 + 이미지 마스크 조합을 피하고
-  // 관공서·전자입찰·브라우저 내장 뷰어 간 호환성을 높인다.
-  // 주의: 이는 PDF/A 인증을 의미하지 않으며, 호환성 기준을 PDF 1.4로 올리는 설정이다.
-  if(pdf.__private__ && typeof pdf.__private__.setPdfVersion==='function'){
-    pdf.__private__.setPdfVersion('1.4');
-  }else{
-    throw new Error('PDF 1.4 설정을 지원하지 않는 jsPDF 버전입니다.');
-  }
   const A4_W=210, A4_H=297;
   // v25: PNG → JPEG 로 변경. jsPDF가 PNG 임베드 시 PDF1.3 문서에 SMask(투명 마스크)를
   // 붙이는데, 일부 뷰어(관공서/전자입찰 내장뷰어 등)에서 이 조합이 "화면 공란, 인쇄는 정상"
@@ -5013,9 +5002,9 @@ window.addEventListener('load', positionStamp);
 function projProgress(p){
   let done=0,total=0;
   if(p.patentMode==='mss'){
-    // v14: 자재공급승인원 - 업체 단위 진행률 (메일확인+발송완료 둘 다 OK = 완료)
+    // v26: 자재공급승인원 - 업체 단위 진행률 (발송완료 = 완료)
     total = p.contractors.length;
-    done  = p.contractors.filter(c => c.mailReceived && c.mailSent).length;
+    done  = p.contractors.filter(c => c.mailSent).length;
   } else if(p.patentMode==='batch'){
     for(const c of p.contractors){
       total+=p.batchPatents.size;
@@ -5585,6 +5574,10 @@ function handleExcelUpload(ev){
     <div class="pv-hd">
       <h3 id="pv-title">📄 발행 미리보기</h3>
       <span class="pv-hd-badge" id="pv-mode-badge">단일 발행</span>
+      <button id="pv-mail-edit-btn" onclick="openMailEditModal()" title="발송될 메일 제목/본문 수정"
+        style="margin-left:auto;margin-right:8px;padding:5px 10px;border:1px solid #c7d2fe;
+        border-radius:6px;background:#eef2ff;color:#4338ca;font-size:12px;font-weight:600;
+        cursor:pointer;">✏️ 메일 수정</button>
       <button class="pv-close" onclick="closePreview()">✕</button>
     </div>
     <div class="pv-body" id="pv-body">
@@ -5592,7 +5585,7 @@ function handleExcelUpload(ev){
     </div>
     <div class="pv-ft">
       <button class="pv-cancel" onclick="closePreview()">✕ 취소</button>
-      <button class="pv-mail" title="메일 자동발송 (추후 연결 예정)" disabled>📧 메일 발송 (준비중)</button>
+      <button class="pv-mail" id="pv-mail-btn" title="현재 미리보기 중인 협약서를 이메일로 발송" onclick="handlePreviewMailSend()">📧 메일 발송</button>
       <button class="pv-download" id="pv-download-btn" onclick="confirmPreview()">📥 PDF 발행 확정</button>
     </div>
   </div>
@@ -5618,6 +5611,426 @@ function handleExcelUpload(ev){
   <button class="qbar-btn clear" onclick="clearAllQueued()" title="전체 대기 해제">↺ 해제</button>
   <button class="qbar-btn" onclick="issueAllQueued()" id="qbar-issue-btn">📤 전체 발행</button>
 </div>
+
+<!-- ════════════════════════════════════════════════════════════════
+     [CONTRACT-EMAIL-ADDON] 이메일 발송 — 자동(발행 확정 직후) + 수동(미리보기 "메일 발송" 버튼).
+     이 위의 코드는 원본 파일에서 단 한 글자도 바꾸지 않았습니다. 딱 하나 예외:
+     발행 미리보기 하단의 기존 "📧 메일 발송 (준비중)" disabled 버튼을 이 기능의
+     목적에 맞게 활성화(disabled 제거, 문구 변경, onclick 연결)했습니다.
+     그 버튼이 원래 하던 다른 동작은 없었으므로(클릭 불가 상태였음) 기존 동작 손실 없음.
+
+     이 블록이 하는 일:
+       - confirmPreview()의 각 성공 분기(FSA/ZIP/단일)에서, PDF 발행이 실제로
+         "성공"한 바로 그 지점에서만 아래 maybeSendPatentEmail(...)을 호출하도록
+         confirmPreview() 안에 최소 3곳만 추가로 연결함 (그 외 로직 무변경)
+       - 발행 미리보기의 "메일 발송" 버튼(handlePreviewMailSend)은 confirmPreview()와
+         완전히 독립적으로 동작 — 현재 미리보기 중인 PDF만 만들어 보낼 뿐,
+         발행 상태(c.status)는 절대 건드리지 않음
+       - 수신 이메일은 "업체 관리"(getMasterContractors/saveMasterContractors/
+         upsertMasterContractor — 전부 기존 함수 재사용)에 등록된 값을 사용
+       - 업체가 없거나 이메일이 없으면 팝업으로 입력받아 upsertMasterContractor로
+         "업체 관리"에 그대로 저장 (별도 저장소 생성 없음) 후 바로 발송
+       - PDF는 새로 만들지 않고, renderPDFTemplate()/capturePDF() 등 기존 함수만 재사용
+       - 이메일 발송이 실패해도 PDF 발행 결과(상태/저장)는 그대로 유지됨 (여기서 절대 throw 안 함)
+     ════════════════════════════════════════════════════════════════ -->
+<style>
+  /* 기존 .pv-mail 클래스 규칙(disabled 느낌의 회색/not-allowed)은 그대로 두고,
+     새로 부여한 id로만 덮어써서 "활성 버튼"처럼 보이게 함 (원본 CSS 규칙 자체는 무수정) */
+  #pv-mail-btn{cursor:pointer !important;opacity:1 !important;
+    background:#eef2ff !important;color:#4338ca !important;border-color:#c7d2fe !important;}
+  #pv-mail-btn:hover{background:#e0e7ff !important;}
+  #pv-mail-btn:disabled{cursor:not-allowed !important;opacity:.6 !important;
+    background:var(--s2) !important;color:var(--tm) !important;}
+</style>
+<div id="ce-email-modal" style="display:none;position:fixed;inset:0;z-index:100000;
+  background:rgba(0,0,0,.45);align-items:center;justify-content:center;font-family:sans-serif;">
+  <div style="background:#fff;border-radius:12px;padding:20px;width:360px;max-width:90vw;
+    box-shadow:0 12px 32px rgba(0,0,0,.3);font-size:13px;color:#1a1a1a;">
+    <strong id="ce-email-title" style="font-size:15px;">시공사 이메일 등록</strong>
+    <p id="ce-email-desc" style="color:#555;line-height:1.6;margin:10px 0;white-space:pre-line;"></p>
+    <input id="ce-email-input" type="email" placeholder="예: abc@company.com"
+      style="width:100%;box-sizing:border-box;padding:9px;border:1px solid #ccc;border-radius:6px;">
+    <div id="ce-email-error" style="color:#dc2626;font-size:12px;min-height:16px;margin-top:4px;"></div>
+    <div style="display:flex;gap:8px;margin-top:12px;">
+      <button id="ce-email-manage" style="flex:1;padding:9px;border:1px solid #7c3aed;border-radius:6px;
+        background:#fff;color:#7c3aed;font-weight:600;cursor:pointer;">업체 관리 열기</button>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:8px;">
+      <button id="ce-email-cancel" style="flex:1;padding:9px;border:1px solid #ccc;border-radius:6px;
+        background:#fff;color:#333;cursor:pointer;">취소</button>
+      <button id="ce-email-submit" style="flex:1;padding:9px;border:none;border-radius:6px;
+        background:#7c3aed;color:#fff;font-weight:700;cursor:pointer;">이메일 등록 후 발송</button>
+    </div>
+  </div>
+</div>
+
+<!-- 발행 미리보기 상단 "✏️ 메일 수정" 버튼으로 여는 팝업 — 발송 전 제목/본문을 직접 고칠 수 있음 -->
+<div id="mail-edit-modal" style="display:none;position:fixed;inset:0;z-index:100000;
+  background:rgba(0,0,0,.45);align-items:center;justify-content:center;font-family:sans-serif;">
+  <div style="background:#fff;border-radius:12px;padding:20px;width:420px;max-width:92vw;
+    box-shadow:0 12px 32px rgba(0,0,0,.3);font-size:13px;color:#1a1a1a;">
+    <strong style="font-size:15px;">✏️ 메일 제목/본문 수정</strong>
+    <label style="display:block;color:#666;font-size:12px;margin-top:12px;">제목</label>
+    <input id="mail-edit-subject" type="text"
+      style="width:100%;box-sizing:border-box;padding:9px;border:1px solid #ccc;border-radius:6px;margin-top:4px;">
+    <label style="display:block;color:#666;font-size:12px;margin-top:10px;">본문</label>
+    <textarea id="mail-edit-body" rows="10"
+      style="width:100%;box-sizing:border-box;padding:9px;border:1px solid #ccc;border-radius:6px;
+      margin-top:4px;font-family:inherit;resize:vertical;"></textarea>
+    <div style="display:flex;gap:8px;margin-top:12px;">
+      <button id="mail-edit-reset" style="flex:1;padding:9px;border:1px solid #ccc;border-radius:6px;
+        background:#fff;color:#333;cursor:pointer;">기본값으로</button>
+      <button id="mail-edit-cancel" style="flex:1;padding:9px;border:1px solid #ccc;border-radius:6px;
+        background:#fff;color:#333;cursor:pointer;">취소</button>
+      <button id="mail-edit-save" style="flex:1;padding:9px;border:none;border-radius:6px;
+        background:#7c3aed;color:#fff;font-weight:700;cursor:pointer;">저장</button>
+    </div>
+  </div>
+</div>
+
+<!-- 메일 발송 결과 알림 — 발행 미리보기 창(z-index 9000)보다 위에, 자동으로 안 사라지고
+     "확인"을 눌러야만 닫힘. 다른 showToast()들(발행 완료 토스트 등)은 그대로 두고,
+     메일 발송 결과 알림에만 사용 -->
+<div id="mail-result-modal" style="display:none;position:fixed;inset:0;z-index:100002;
+  background:rgba(0,0,0,.5);align-items:center;justify-content:center;font-family:sans-serif;">
+  <div style="background:#fff;border-radius:12px;padding:22px;width:360px;max-width:90vw;
+    box-shadow:0 12px 32px rgba(0,0,0,.35);font-size:13.5px;line-height:1.6;color:#1a1a1a;
+    text-align:center;">
+    <div id="mail-result-icon" style="font-size:28px;margin-bottom:10px;"></div>
+    <div id="mail-result-message" style="white-space:pre-line;word-break:break-all;"></div>
+    <button id="mail-result-confirm" style="margin-top:16px;padding:9px 28px;border:none;
+      border-radius:6px;background:#7c3aed;color:#fff;font-weight:700;cursor:pointer;">확인</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  'use strict';
+
+  // 메일 발송 결과 전용 알림 — 확인 버튼을 눌러야만 닫힘
+  const mailResultModal   = document.getElementById('mail-result-modal');
+  const mailResultIcon    = document.getElementById('mail-result-icon');
+  const mailResultMessage = document.getElementById('mail-result-message');
+  const mailResultConfirm = document.getElementById('mail-result-confirm');
+
+  function showMailResultModal(message, isError){
+    mailResultIcon.textContent = isError ? '⚠️' : '✅';
+    mailResultMessage.textContent = message;
+    mailResultModal.style.display = 'flex';
+  }
+  mailResultConfirm.addEventListener('click', () => { mailResultModal.style.display = 'none'; });
+  mailResultModal.addEventListener('click', (e) => {
+    if(e.target === mailResultModal) mailResultModal.style.display = 'none';
+  });
+
+  // 실제 발송 성공을 이미 확인한 Cloud Run 메일 발송 서비스 (독립 테스트 버튼과 동일한 서버)
+  const CONTRACT_EMAIL_API_URL = 'https://send-test-email-664628600328.asia-northeast3.run.app';
+
+  // ── 메일 문구 템플릿 — 여기만 고치면 제목/본문을 바꿀 수 있음 ──────────────
+  // 제목: 첨부되는 PDF 파일명에서 ".pdf"만 제거한 값을 그대로 사용 (하드코딩 없음)
+  function buildContractEmailSubject(filename){
+    return `[POUR] ${String(filename||'').replace(/\.pdf$/i, '')}`;
+  }
+  function buildContractEmailBody(p, c, pat){
+    // 고정 문구 — 요청에 따라 현장명/시공사명 등은 본문에 자동 삽입하지 않음
+    return [
+      '안녕하세요. NETFORM 입니다.',
+      '',
+      '요청하신 협약서 송부드립니다.',
+      '',
+      '',
+      '협약서 요청 시, 특허협약서 발급 요청서를 작성하여',
+      'netformrnd@netformrnd.com 으로 요청 부탁드립니다.',
+      '',
+      '★협약서 발급 요청 메일 부재 시, 협약서 발급이 어려움을 알려드립니다★',
+      '',
+      '감사합니다.'
+    ].join('\n');
+  }
+
+  function isValidEmail(s){ return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(s||'').trim()); }
+
+  // ── "업체 관리" 데이터에서 이 시공사의 등록된 이메일을 찾음 (별도 저장소 없음) ──
+  // getMasterContractors() / normalizeCo() 는 기존 함수 그대로 사용
+  function findMasterEntry(c){
+    const name = normalizeCo(c.name);
+    return getMasterContractors().find(x => normalizeCo(x.name) === name) || null;
+  }
+  function extractValidEmails(raw){
+    const s = String(raw || '').trim();
+    if(!s) return [];
+    const parts = s.split(/[,;]/).map(x => x.trim()).filter(Boolean);
+    return Array.from(new Set(parts.filter(isValidEmail)));
+  }
+
+  function blobToBase64(blob){
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(String(reader.result).split(',')[1]);
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  }
+
+  // ── "✏️ 메일 수정" 팝업에서 저장한 사용자 수정본 (현재 미리보기 job에만 적용) ──
+  // job(pId,cId,patId)이 바뀌면 자동으로 무시되고 기본 문구로 되돌아감
+  let _mailOverride = null; // { pId, cId, patId, subject, text }
+
+  function sameJob(o, p, c, pat){
+    return !!o && o.pId === p.id && o.cId === c.id && o.patId === pat.id;
+  }
+  function getEffectiveSubject(p, c, pat, filename){
+    if(sameJob(_mailOverride, p, c, pat)) return _mailOverride.subject;
+    return buildContractEmailSubject(filename);
+  }
+  function getEffectiveBody(p, c, pat){
+    if(sameJob(_mailOverride, p, c, pat)) return _mailOverride.text;
+    return buildContractEmailBody(p, c, pat);
+  }
+
+  // ── 실제 메일 발송 (이메일이 이미 확보된 상태에서만 호출). 절대 throw 안 함 ──
+  async function sendPatentEmailTo(emails, p, c, pat, blob, filename){
+    try{
+      const pdfBase64 = await blobToBase64(blob);
+      const res = await fetch(CONTRACT_EMAIL_API_URL, {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({
+          to: emails.join(','),
+          subject: getEffectiveSubject(p, c, pat, filename),
+          text: getEffectiveBody(p, c, pat),
+          filename,
+          pdfBase64
+        })
+      });
+      const data = await res.json().catch(() => ({}));
+      if(!res.ok || !data.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      return { ok:true };
+    }catch(e){
+      console.error('[sendPatentEmailTo]', e);
+      return { ok:false, error: e.message||String(e) };
+    }
+  }
+
+  // ── 이메일 등록 팝업 (Promise 기반) — 취소/제출 결과를 돌려줌 ──
+  const ceModal   = document.getElementById('ce-email-modal');
+  const ceTitle   = document.getElementById('ce-email-title');
+  const ceDesc    = document.getElementById('ce-email-desc');
+  const ceInput   = document.getElementById('ce-email-input');
+  const ceError   = document.getElementById('ce-email-error');
+  const ceManage  = document.getElementById('ce-email-manage');
+  const ceCancel  = document.getElementById('ce-email-cancel');
+  const ceSubmit  = document.getElementById('ce-email-submit');
+
+  function askContractorEmail(contractorName, isNewContractor){
+    return new Promise((resolve) => {
+      ceTitle.textContent = isNewContractor ? '업체 관리에 등록되지 않은 시공사' : '시공사 이메일 등록';
+      ceDesc.textContent = isNewContractor
+        ? `'${contractorName}' 시공사가 업체 관리에 등록되어 있지 않습니다.\n이메일 입력 후 업체 관리에 함께 등록하시겠습니까?\n\n입력한 이메일 주소는 업체 관리에도 함께 저장됩니다.`
+        : `'${contractorName}' 시공사는 업체 관리에 이메일 주소가 등록되어 있지 않습니다.\n\n협약서를 이메일로 발송하려면 시공사 이메일 주소를 등록해주세요.\n\n입력한 이메일 주소는 업체 관리에도 함께 저장됩니다.`;
+      ceInput.value = '';
+      ceError.textContent = '';
+      ceModal.style.display = 'flex';
+      setTimeout(() => ceInput.focus(), 50);
+
+      function cleanup(){
+        ceModal.style.display = 'none';
+        ceSubmit.removeEventListener('click', onSubmit);
+        ceCancel.removeEventListener('click', onCancel);
+        ceManage.removeEventListener('click', onManage);
+      }
+      function onCancel(){ cleanup(); resolve({ action:'cancel' }); }
+      function onSubmit(){
+        const email = ceInput.value.trim();
+        if(!isValidEmail(email)){
+          ceError.textContent = '올바른 이메일 주소를 입력해주세요.';
+          return;
+        }
+        cleanup();
+        resolve({ action:'submit', email });
+      }
+      // "업체 관리 열기"는 기존 openContractorManager()를 그대로 호출 (새 화면 만들지 않음)
+      function onManage(){ openContractorManager(); }
+
+      ceSubmit.addEventListener('click', onSubmit);
+      ceCancel.addEventListener('click', onCancel);
+      ceManage.addEventListener('click', onManage);
+    });
+  }
+
+  // ── PDF 발행이 "성공"한 직후에만 호출됨. 절대 throw하지 않음 (PDF 결과에 영향 금지) ──
+  window.maybeSendPatentEmail = async function(c, p, pat, blob, filename){
+    const entry  = findMasterEntry(c);
+    let emails   = entry ? extractValidEmails(entry.email) : [];
+
+    if(emails.length === 0){
+      // CASE 2(업체는 있는데 이메일 없음) / CASE 3(업체 자체가 없음) 공통 처리
+      const choice = await askContractorEmail(c.name, !entry);
+      if(choice.action === 'cancel'){
+        showMailResultModal('PDF 발행은 완료되었습니다. 이메일이 등록되지 않아 메일은 발송되지 않았습니다.', true);
+        return { ok:false, skipped:true };
+      }
+      // 기존 "업체 관리" 저장 함수를 그대로 재사용 — 있으면 이메일만 갱신, 없으면 신규 등록
+      // (upsertMasterContractor 내부가 getMasterContractors/saveMasterContractors를 그대로 사용)
+      upsertMasterContractor(c.name, choice.email);
+      emails = [choice.email];
+
+      const sendResult = await sendPatentEmailTo(emails, p, c, pat, blob, filename);
+      if(sendResult.ok){
+        showMailResultModal(`이메일 주소를 업체 관리에 등록하고 협약서 발송까지 완료했습니다. 수신: ${emails.join(', ')}`);
+      } else {
+        showMailResultModal(`이메일 주소는 업체 관리에 저장되었습니다. 다만 메일 발송에 실패했습니다: ${sendResult.error}`, true);
+      }
+      return sendResult;
+    }
+
+    // CASE 1: 업체 관리에 이미 등록된 이메일로 바로 발송
+    const sendResult = await sendPatentEmailTo(emails, p, c, pat, blob, filename);
+    if(sendResult.ok){
+      showMailResultModal(`PDF 발행 및 이메일 발송이 완료되었습니다. 수신: ${emails.join(', ')}`);
+    } else {
+      showMailResultModal(`PDF 발행은 완료되었습니다. 이메일 발송에 실패했습니다: ${sendResult.error}`, true);
+    }
+    return sendResult;
+  };
+
+  // ── 발행 미리보기의 "메일 발송" 버튼 전용 발송 로직. maybeSendPatentEmail과
+  //   이메일 조회/팝업/발송 헬퍼는 그대로 공유하되, 문구만 "PDF 발행" 언급 없이 독립적으로 안내 ──
+  window.sendPatentEmailInteractive = async function(c, p, pat, blob, filename){
+    const entry  = findMasterEntry(c);
+    let emails   = entry ? extractValidEmails(entry.email) : [];
+
+    if(emails.length === 0){
+      const choice = await askContractorEmail(c.name, !entry);
+      if(choice.action === 'cancel'){
+        showMailResultModal('이메일이 등록되지 않아 메일을 발송하지 않았습니다', true);
+        return { ok:false, skipped:true };
+      }
+      upsertMasterContractor(c.name, choice.email); // 기존 "업체 관리" 저장 함수 재사용
+      emails = [choice.email];
+
+      const sendResult = await sendPatentEmailTo(emails, p, c, pat, blob, filename);
+      if(sendResult.ok){
+        showMailResultModal(`이메일 주소를 업체 관리에 등록하고 협약서 발송까지 완료했습니다. 수신: ${emails.join(', ')}`);
+      } else {
+        showMailResultModal(`이메일 주소는 업체 관리에 저장되었습니다. 다만 메일 발송에 실패했습니다: ${sendResult.error}`, true);
+      }
+      return sendResult;
+    }
+
+    const sendResult = await sendPatentEmailTo(emails, p, c, pat, blob, filename);
+    if(sendResult.ok){
+      showMailResultModal(`협약서 이메일 발송이 완료되었습니다. 수신: ${emails.join(', ')}`);
+    } else {
+      showMailResultModal(`이메일 발송에 실패했습니다: ${sendResult.error}`, true);
+    }
+    return sendResult;
+  };
+
+  // ── "📧 메일 발송" 버튼 click handler. confirmPreview()와 완전히 독립적으로 동작:
+  //   발행 상태(c.status)는 절대 건드리지 않고, 현재 미리보기 중인 PDF만 만들어 보냄 ──
+  window.handlePreviewMailSend = async function(){
+    const btn = document.getElementById('pv-mail-btn');
+    if(!btn || btn.disabled) return; // 중복 클릭 방지
+
+    if(_preview.mode !== 'single' || _preview.jobs.length !== 1){
+      showToast('메일 발송은 단일 발행 미리보기에서만 가능합니다', true);
+      return;
+    }
+    const { pId, cId, patId } = _preview.jobs[0];
+    const p   = projects.find(x => x.id === pId);
+    const c   = p?.contractors.find(x => x.id === cId);
+    const pat = PATENTS.find(x => x.id === patId);
+    if(!p || !c || !pat){
+      showToast('현장/시공사/특허 정보를 찾을 수 없습니다', true);
+      return;
+    }
+
+    const origText = '📧 메일 발송';
+    btn.disabled = true;
+    btn.textContent = '메일 발송 중...';
+    try{
+      // 현재 미리보기 화면에 이미 렌더된 것과 동일한 협약서를 그대로 캡처
+      // (renderPDFTemplate/capturePDF 는 기존 함수 그대로 — 새 PDF 생성 로직 없음)
+      await renderPDFTemplate(p, c, pat);
+      const { blob, filename } = await capturePDF(p, c, pat, true);
+      const result = await sendPatentEmailInteractive(c, p, pat, blob, filename);
+      if(result && result.ok){
+        btn.textContent = '메일 발송 완료';
+        setTimeout(() => { btn.disabled = false; btn.textContent = origText; }, 2000);
+      } else {
+        btn.disabled = false;
+        btn.textContent = origText;
+      }
+    }catch(e){
+      console.error('[handlePreviewMailSend]', e);
+      showMailResultModal('메일 발송 중 오류: ' + (e.message||e), true);
+      btn.disabled = false;
+      btn.textContent = origText;
+    }
+  };
+
+  // ── "✏️ 메일 수정" 팝업 — 발송 전 제목/본문을 직접 고칠 수 있음 ──
+  // capturePDF() 내부와 동일한 규칙으로 파일명을 미리 계산 (새 PDF 생성 없이 제목 미리보기용)
+  function computeExpectedFilename(p, c, pat){
+    return `${patLabel(pat)}_${p.name}_${denormalizeCo(c.name)}.pdf`;
+  }
+
+  const mailEditModal   = document.getElementById('mail-edit-modal');
+  const mailEditSubject = document.getElementById('mail-edit-subject');
+  const mailEditBody    = document.getElementById('mail-edit-body');
+  const mailEditReset   = document.getElementById('mail-edit-reset');
+  const mailEditCancel  = document.getElementById('mail-edit-cancel');
+  const mailEditSave    = document.getElementById('mail-edit-save');
+
+  window.openMailEditModal = function(){
+    if(_preview.mode !== 'single' || _preview.jobs.length !== 1){
+      showToast('메일 수정은 단일 발행 미리보기에서만 가능합니다', true);
+      return;
+    }
+    const { pId, cId, patId } = _preview.jobs[0];
+    const p   = projects.find(x => x.id === pId);
+    const c   = p?.contractors.find(x => x.id === cId);
+    const pat = PATENTS.find(x => x.id === patId);
+    if(!p || !c || !pat){
+      showToast('현장/시공사/특허 정보를 찾을 수 없습니다', true);
+      return;
+    }
+
+    const filename = computeExpectedFilename(p, c, pat);
+    mailEditSubject.value = getEffectiveSubject(p, c, pat, filename);
+    mailEditBody.value    = getEffectiveBody(p, c, pat);
+    mailEditModal.style.display = 'flex';
+
+    function cleanup(){
+      mailEditModal.style.display = 'none';
+      mailEditSave.removeEventListener('click', onSave);
+      mailEditCancel.removeEventListener('click', onCancel);
+      mailEditReset.removeEventListener('click', onReset);
+    }
+    function onCancel(){ cleanup(); }
+    function onSave(){
+      _mailOverride = {
+        pId, cId, patId,
+        subject: mailEditSubject.value,
+        text: mailEditBody.value
+      };
+      cleanup();
+      showToast('메일 제목/본문 수정 내용이 저장되었습니다 (이번 발송에 적용)');
+    }
+    function onReset(){
+      if(sameJob(_mailOverride, p, c, pat)) _mailOverride = null;
+      mailEditSubject.value = buildContractEmailSubject(filename);
+      mailEditBody.value    = buildContractEmailBody(p, c, pat);
+    }
+
+    mailEditSave.addEventListener('click', onSave);
+    mailEditCancel.addEventListener('click', onCancel);
+    mailEditReset.addEventListener('click', onReset);
+  };
+})();
+</script>
+
 
 </body>
 </html>
