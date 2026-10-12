@@ -3000,7 +3000,8 @@ function confirmModal(){
   closeModal();
   renderAll();
 }
-document.getElementById('modal').addEventListener('click',function(e){if(e.target===this)closeModal()});
+// 현장 등록/수정: 텍스트 선택 드래그가 배경에서 끝나도 입력창을 닫지 않는다.
+// 배경 클릭으로 닫지 않으며, 취소·× 버튼 또는 등록/수정 완료 시에만 닫는다.
 
 /* ═══ RENDER ALL ══════════════════════════════════ */
 // Check if every contractor has every assigned patent done
