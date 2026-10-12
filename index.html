@@ -5757,15 +5757,55 @@ function handleExcelUpload(ev){
   const mailResultMessage = document.getElementById('mail-result-message');
   const mailResultConfirm = document.getElementById('mail-result-confirm');
 
+  let pendingMailConfirmation = null;
   function showMailResultModal(message, isError){
+    if(pendingMailConfirmation){ pendingMailConfirmation(false); pendingMailConfirmation = null; }
     mailResultIcon.textContent = isError ? '⚠️' : '✅';
     mailResultMessage.textContent = message;
     mailResultModal.style.display = 'flex';
   }
-  mailResultConfirm.addEventListener('click', () => { mailResultModal.style.display = 'none'; });
-  mailResultModal.addEventListener('click', (e) => {
-    if(e.target === mailResultModal) mailResultModal.style.display = 'none';
+  mailResultConfirm.addEventListener('click', () => {
+    // 날짜 기록은 실제로 열린 성공 팝업의 확인 버튼에서만 허용한다.
+    if(mailResultModal.style.display !== 'flex' || !mailResultModal.getClientRects().length) return;
+    const resolve = pendingMailConfirmation;
+    pendingMailConfirmation = null;
+    mailResultModal.style.display = 'none';
+    if(resolve) resolve(true);
   });
+  // 배경 클릭으로 성공 팝업을 건너뛰지 못하게 한다.
+
+  async function confirmSuccessfulMailAndRecordDate(sendResult, pId, cId, message){
+    if(!sendResult || sendResult.ok !== true || !sendResult.sentAt) return;
+    const sentAt = new Date(sendResult.sentAt);
+    if(Number.isNaN(sentAt.getTime())) return;
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone:'Asia/Seoul', month:'2-digit', day:'2-digit'
+    }).formatToParts(sentAt);
+    const dateLabel = parts.find(x=>x.type==='month').value + '.' + parts.find(x=>x.type==='day').value;
+    const confirmed = await new Promise(resolve => {
+      showMailResultModal(message + '\n\n확인을 누르면 비고에 발송 날짜(' + dateLabel + ')가 자동 기록됩니다.');
+      pendingMailConfirmation = resolve;
+    });
+    if(!confirmed) return;
+    // 전송 대기 중 Firebase가 객체를 갱신해도 원래 현장/업체의 최신 비고를 사용한다.
+    const currentProject = projects.find(x=>x.id===pId);
+    const currentContractor = currentProject?.contractors.find(x=>x.id===cId);
+    if(!currentContractor){
+      showMailResultModal('메일 발송은 완료되었습니다. 다만 해당 현장 또는 업체를 찾을 수 없어 날짜를 기록하지 못했습니다.', true);
+      return;
+    }
+    const note = String(currentContractor.note || '').trim();
+    const alreadyRecorded = note.split(/[^0-9.]+/).includes(dateLabel);
+    if(!alreadyRecorded){
+      try{
+        setContractorNote(pId, cId, note ? note + '\n' + dateLabel : dateLabel);
+        renderAll();
+      }catch(error){
+        console.error('[mail-date]', error);
+        showMailResultModal('메일 발송은 완료되었습니다. 다만 날짜 기록 중 오류가 발생했습니다. 비고를 확인해주세요.', true);
+      }
+    }
+  }
 
   // 실제 발송 성공을 이미 확인한 Cloud Run 메일 발송 서비스 (독립 테스트 버튼과 동일한 서버)
   const CONTRACT_EMAIL_API_URL = 'https://send-test-email-664628600328.asia-northeast3.run.app';
@@ -5927,7 +5967,7 @@ function handleExcelUpload(ev){
     let data = null, parseFailed = false;
     try{ data = await res.json(); }catch(parseErr){ parseFailed = true; }
 
-    if(res.ok && data && data.ok){
+    if(res.ok && data && data.ok === true){
       // [진단용] SMTP 서버의 실제 접수/거부 목록과 원문 응답도 함께 저장 —
       // "성공" 표시가 곧 수신함 도착을 뜻하지 않으므로, 문제 생기면 이 값으로 원인 추적
       // [발송 알림] notify는 상대방 발송 결과(status)와 별개로 저장 — 알림 실패가
@@ -5936,7 +5976,7 @@ function handleExcelUpload(ev){
         messageId: data.messageId || null,
         smtpAccepted: data.accepted || null, smtpRejected: data.rejected || null, smtpResponse: data.smtpResponse || null,
         notify: data.notify || { attempted:false } });
-      return { ok:true, notify: entry.notify };
+      return { ok:true, notify: entry.notify, sentAt: entry.resultAt };
     }
 
     if(data && data.ok === false){
@@ -6027,7 +6067,7 @@ function handleExcelUpload(ev){
 
       const sendResult = await sendPatentEmailTo(emails, p, c, pat, blob, filename);
       if(sendResult.ok){
-        showMailResultModal(`이메일 주소를 업체 관리에 등록하고 협약서 발송까지 완료했습니다. 수신: ${emails.join(', ')}${notifySuffix(sendResult)}`);
+        await confirmSuccessfulMailAndRecordDate(sendResult, p.id, c.id, `이메일 주소를 업체 관리에 등록하고 협약서 발송까지 완료했습니다. 수신: ${emails.join(', ')}${notifySuffix(sendResult)}`);
       } else {
         showMailResultModal(`이메일 주소는 업체 관리에 저장되었습니다. 다만 메일 발송에 실패했습니다: ${sendResult.error}`, true);
       }
@@ -6036,7 +6076,7 @@ function handleExcelUpload(ev){
 
     const sendResult = await sendPatentEmailTo(emails, p, c, pat, blob, filename);
     if(sendResult.ok){
-      showMailResultModal(`협약서 이메일 발송이 완료되었습니다. 수신: ${emails.join(', ')}${notifySuffix(sendResult)}`);
+      await confirmSuccessfulMailAndRecordDate(sendResult, p.id, c.id, `협약서 이메일 발송이 완료되었습니다. 수신: ${emails.join(', ')}${notifySuffix(sendResult)}`);
     } else {
       showMailResultModal(`이메일 발송에 실패했습니다: ${sendResult.error}`, true);
     }
