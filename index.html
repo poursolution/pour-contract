@@ -1405,6 +1405,137 @@ body{font-family:-apple-system,'Malgun Gothic','Apple SD Gothic Neo','맑은 고
 }
 
 </style>
+<style>
+.td-button{flex:none;cursor:pointer;border:1px solid var(--b);border-radius:9px;background:var(--s);color:var(--t);padding:8px 12px;font:inherit;font-size:18px;line-height:1.2}
+.td-popup[hidden]{display:none!important}
+.td-popup{position:fixed;z-index:900;width:390px;max-width:calc(100vw - 16px);max-height:min(480px,70dvh);box-sizing:border-box;background:var(--s,#fff);color:var(--t,#17202f);border:1px solid var(--b,#ddd);border-radius:13px;box-shadow:0 12px 36px #17202f26;display:flex;flex-direction:column;overflow:hidden;text-align:left}
+.td-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;padding:14px 16px 11px;border-bottom:1px solid var(--b,#ddd);flex:none}
+.td-title{font-size:15px;font-weight:800;margin:0}.td-date{font-size:12px;color:var(--tm,#64748b);margin-top:5px}
+.td-close{border:0;background:transparent;color:var(--tm,#64748b);font-size:22px;cursor:pointer;line-height:1;min-width:32px;min-height:32px}
+.td-body{overflow-y:auto;overscroll-behavior:contain;min-height:0;max-height:360px;padding:0 16px;font-size:13px;line-height:1.65;overflow-wrap:anywhere}
+.td-site{padding:12px 0;border-bottom:1px solid var(--b,#ddd)}.td-site:last-child{border-bottom:0}
+.td-line{font-weight:400}.td-line strong{font-weight:800}.td-pending{color:#b42318;margin-top:4px}.td-done{color:#15803d;margin-top:4px}.td-warning{color:#925b0d;margin-top:4px}.td-memo{color:var(--tm,#64748b);margin-top:4px}.td-message{margin:18px 0;color:var(--tm,#64748b)}
+.td-button:focus-visible,.td-close:focus-visible{outline:2px solid var(--blue,#2563eb);outline-offset:3px}
+
+</style>
+<script>
+/* Read-only projection of the existing project cache. No persistence or issuing. */
+(function(root){
+  'use strict';
+  const seoulDate = (now=new Date()) => {
+    const parts=new Intl.DateTimeFormat('en-US',{timeZone:'Asia/Seoul',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(now);
+    const part=k=>parts.find(p=>p.type===k).value;
+    return `${part('year')}-${part('month')}-${part('day')}`;
+  };
+  const isMemo=c=>String(c.name||'').trim()==='메모';
+  function timeInfo(value){
+    const m=String(value||'').trim().match(/^(\d{1,2})(?:시\s*(?:(\d{1,2})분)?|:(\d{2}))?$/);
+    if(!m) return {minutes:Infinity,label:''};
+    const h=+m[1], min=+(m[2]||m[3]||0);
+    if(h>23||min>59) return {minutes:Infinity,label:''};
+    return {minutes:h*60+min,label:`(${h}시${min?' '+min+'분':''})`};
+  }
+  function hasDate(value){
+    if(typeof value!=='string') return false;
+    const s=value.trim();
+    const short=s.match(/^(\d{1,2})\.(\d{1,2})\.?$/);
+    if(short){
+      const m=+short[1], d=+short[2];
+      return m>=1&&m<=12&&d>=1&&d<=[31,29,31,30,31,30,31,31,30,31,30,31][m-1];
+    }
+    return /^\d{4}-\d{2}-\d{2}(?:T.*)?$/.test(s)&&Number.isFinite(Date.parse(s));
+  }
+  function issued(p,c){
+    // Use the actual issue-date map, never dates found in free-text notes,
+    // mail receipt, mail counts or project completion badges.
+    // The existing export uses mailSentAt as the issue datetime for MSS.
+    if(p.patentMode==='mss') return hasDate(c.mailSentAt);
+    const dates=c.issuedAt||{};
+    const ids=p.patentMode==='batch' ? Array.from(p.batchPatents||[]) :
+      [...new Set([...Object.keys(c.status||{}),...Object.keys(dates)])];
+    return ids.length>0&&ids.every(id=>hasDate(dates[id]));
+  }
+  function items(projects,now=new Date()){
+    const today=seoulDate(now);
+    return projects.filter(p=>p.deadline===today).map(p=>{
+      const rows=p.contractors||[], companies=rows.filter(c=>!isMemo(c));
+      const memo=rows.some(isMemo), first=rows[0];
+      return {name:p.name||'(이름없음)',time:timeInfo(p.deadlineTime),memo,
+        first:first&&!isMemo(first)&&first.name ? first.name : null,
+        memoOnly:memo&&companies.length===0,empty:rows.length===0,
+        pending:companies.filter(c=>!issued(p,c)).map(c=>c.name||'(업체명 없음)')};
+    }).sort((a,b)=>a.time.minutes-b.time.minutes);
+  }
+  const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  function markup(projects,now){
+    const list=items(projects,now);
+    if(!list.length) return '<p class="td-message">오늘 디데이 현장이 없습니다</p>';
+    return list.map(it=>`<div class="td-site"><div class="td-line">🏢 ${it.time.label?esc(it.time.label)+' ':''}<strong>${esc(it.name)}</strong>${it.memoOnly?'':' : '+esc(it.first||'1순번 미등록')}</div>`+
+      (it.memoOnly?'':it.empty?'<div class="td-warning">⚠️ 업체 미등록</div>':it.pending.length?`<div class="td-pending">❌ 미발행: ${it.pending.map(esc).join(' · ')}</div>`:'<div class="td-done">✅ 완료</div>')+
+      (it.memo?'<div class="td-memo">📝 메모 있음</div>':'')+'</div>').join('');
+  }
+  const api={seoulDate,timeInfo,hasDate,issued,items,markup};
+  if(typeof module!=='undefined'&&module.exports) module.exports=api;
+  root.TodayDday=api;
+  if(typeof document==='undefined') return;
+  let connected=false, state='loading', request=0, date=seoulDate(), timer, view=[];
+  const popup=()=>document.getElementById('today-dday-popup');
+  function position(){
+    const box=popup(), button=document.getElementById('today-dday-button');
+    if(!box||box.hidden) return;
+    const r=button.getBoundingClientRect();
+    box.style.left=Math.max(8,Math.min(r.right-box.offsetWidth,innerWidth-box.offsetWidth-8))+'px';
+    box.style.top=Math.min(r.bottom+8,innerHeight-80)+'px';
+    box.style.maxHeight=Math.max(60,innerHeight-r.bottom-16)+'px';
+  }
+  function render(){
+    const body=document.getElementById('today-dday-body');
+    if(!body) return;
+    document.getElementById('today-dday-date').textContent=seoulDate();
+    const message=state==='loading'?'데이터를 불러오는 중입니다…':state==='error'?'데이터 조회에 실패했습니다. 다시 열어주세요.':!connected?'동기화 연결을 확인하고 있습니다. 다시 열어주세요.':null;
+    body.innerHTML=message?`<p class="td-message" role="status">${message}</p>`:markup(view);
+    position();
+  }
+  api.connection=value=>{connected=value;if(!value) ++request;render();};
+  api.failed=()=>{state='error';++request;render();};
+  api.changed=()=>{view=projects;render();};
+  api.synced=data=>{view=data;state='ready';render();};
+  async function refresh(){
+    const current=++request;
+    state='loading';render();
+    if(typeof FB_DB==='undefined'||!FB_DB||!connected){state='error';render();return;}
+    // Firebase get() requests the server before falling back to its cache.
+    // A disconnected client is never rendered as empty/complete.
+    let timeout;
+    try{
+      const snap=await Promise.race([FB_DB.ref(`${FB_ROOT}/projects`).get(),new Promise((_,reject)=>{timeout=setTimeout(()=>reject(new Error('timeout')),10000);})]);
+      if(current!==request) return;
+      // Refresh the read-only projection; never replace the business cache.
+      view=FB_PENDING_SAVES||_saveTimer.projects ? projects : projectsFromJSON(snap.val()||[]);
+      state='ready';render();
+    }catch(e){if(current===request){state='error';render();}}
+    finally{clearTimeout(timeout);}
+  }
+  function close(){const box=popup();box.hidden=true;document.getElementById('today-dday-button').setAttribute('aria-expanded','false');}
+  function schedule(){
+    clearTimeout(timer);
+    // Next Seoul midnight; dates are calculated independently of OS timezone.
+    const next=Date.parse(seoulDate()+'T00:00:00+09:00')+86400000;
+    timer=setTimeout(()=>{date=seoulDate();render();if(!popup().hidden) refresh();schedule();},Math.max(1,next-Date.now()+20));
+  }
+  document.addEventListener('DOMContentLoaded',()=>{
+    const button=document.getElementById('today-dday-button');
+    button.addEventListener('click',()=>{if(!popup().hidden){close();return;}popup().hidden=false;button.setAttribute('aria-expanded','true');refresh();});
+    document.getElementById('today-dday-close').addEventListener('click',()=>{close();button.focus();});
+    document.addEventListener('click',e=>{if(!popup().hidden&&!popup().contains(e.target)&&!button.contains(e.target)) close();});
+    document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!popup().hidden){close();button.focus();}});
+    addEventListener('resize',position);addEventListener('scroll',position,true);
+    document.addEventListener('visibilitychange',()=>{if(document.hidden)return;if(date!==seoulDate()){date=seoulDate();schedule();}if(!popup().hidden)refresh();else render();});
+    schedule();render();
+  });
+})(typeof window==='undefined'?globalThis:window);
+
+</script>
 </head>
 <body>
 
@@ -1436,6 +1567,11 @@ body{font-family:-apple-system,'Malgun Gothic','Apple SD Gothic Neo','맑은 고
     <div class="stat"><div class="stat-n" id="st-pend" style="color:var(--tm)">0</div><div class="stat-l">미발행</div></div>
   </div>
   <div class="hd-buttons-row">
+    <button type="button" class="td-button" id="today-dday-button" aria-label="오늘 디데이 알림" aria-expanded="false" aria-controls="today-dday-popup">🔔</button>
+    <section id="today-dday-popup" class="td-popup" role="dialog" aria-labelledby="today-dday-title" hidden>
+      <div class="td-heading"><div><h2 id="today-dday-title" class="td-title">🔔 오늘 디데이</h2><div id="today-dday-date" class="td-date"></div></div><button type="button" id="today-dday-close" class="td-close" aria-label="알림 닫기">×</button></div>
+      <div id="today-dday-body" class="td-body" aria-live="polite"></div>
+    </section>
     <button class="btn-folder" id="btn-pdf-folder" onclick="onPdfFolderClick(event)" title="PDF 저장폴더 설정 — 발행 시 현장별 하위폴더로 자동 저장">
       <span class="bf-ico">📁</span>
       <span class="bf-path" id="pdf-folder-label">저장폴더 미설정</span>
@@ -1756,6 +1892,7 @@ async function fbInit(){
     // 연결 상태 모니터링 (.info/connected 는 시스템 메타데이터)
     FB_DB.ref('.info/connected').on('value', (snap)=>{
       const connected = snap.val() === true;
+      TodayDday.connection(connected);
       if(connected){
         fbSetStatus('online', '실시간 동기화');
       } else {
@@ -1771,6 +1908,7 @@ async function fbInit(){
 
     FB_READY = true;
   }catch(e){
+    TodayDday.failed();
     console.error('[Firebase init]', e);
     fbSetStatus('offline', '연결 실패 (로컬 모드)');
     // Firebase 실패 시 localStorage 폴백
@@ -1861,13 +1999,14 @@ async function fbMigrateFromLocalStorage(){
 function fbAttachListeners(){
   // projects
   FB_DB.ref(`${FB_ROOT}/projects`).on('value', (snap)=>{
+    TodayDday.synced(projectsFromJSON(snap.val() || []));
     if(FB_WRITE_GUARD) return;  // 자기 자신의 write 무시
     const data = snap.val() || [];
     projects = projectsFromJSON(data);
     if(typeof renderAll === 'function') renderAll();
     if(typeof _refreshDetailIfOpen === 'function') _refreshDetailIfOpen();
     if(typeof updateQbar === 'function') updateQbar();
-  });
+  }, ()=>TodayDday.failed());
   // counters
   FB_DB.ref(`${FB_ROOT}/counters`).on('value', (snap)=>{
     if(FB_WRITE_GUARD) return;
@@ -1922,6 +2061,7 @@ function fbWrite(path, data, debounceKey){
     clearTimeout(_saveTimer[debounceKey]);
   }
   const doWrite = async ()=>{
+    if(debounceKey) _saveTimer[debounceKey] = null;
     try{
       FB_WRITE_GUARD = true;
       FB_PENDING_SAVES++;
@@ -2343,6 +2483,7 @@ function projectsFromJSON(arr){
   });
 }
 function saveProjects(){
+  TodayDday.changed();
   // 메모리 캐시는 즉시, Firebase는 디바운스 + 카운터 동시 저장
   fbWrite('projects', projectsToJSON(projects), 'projects');
   fbWrite('counters', {pNext, cNext}, 'counters');
@@ -3140,6 +3281,7 @@ function isExpired(p){
 }
 
 function renderAll(){
+  TodayDday.changed();
   const q=document.getElementById('srch-inp').value.trim();
   // v13: 검색 - 현장명 또는 시공사명 매칭
   const all = q ? projects.filter(p => {
