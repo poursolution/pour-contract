@@ -4201,7 +4201,7 @@ function renderContractor(p,c,ci,locked=false){
          onkeydown="if(event.key==='Enter')saveEditCo(${p.id},${c.id});else if(event.key==='Escape')cancelEditCo()">
        <button class="btn-edit-co" onclick="event.stopPropagation();saveEditCo(${p.id},${c.id})" title="저장">✓ 저장</button>
        <button class="btn-edit-co" onclick="event.stopPropagation();cancelEditCo()" title="취소">✕</button>`
-    : `${escH(c.name)}${mailBtnHtml}${sentBtnHtml}${locked?'':`<button class="btn-edit-co" onclick="event.stopPropagation();startEditCo(${p.id},${c.id})" title="업체명 수정">✎</button>`}`;
+    : `${window.PourNewPartner ? PourNewPartner.markup(c.name) : ''}${escH(c.name)}${mailBtnHtml}${sentBtnHtml}${locked?'':`<button class="btn-edit-co" onclick="event.stopPropagation();startEditCo(${p.id},${c.id})" title="업체명 수정">✎</button>`}`;
 
   // 대기 배지
   const qBadgeHtml = queuedCount>0
@@ -6475,5 +6475,102 @@ function handleExcelUpload(ev){
 </script>
 
 
+<script>
+/* 신규 협약사 표시 — 고객관리카드의 협약 정보만 읽습니다. */
+window.PourNewPartner = (function(){
+  'use strict';
+  const CRM_ORIGIN='https://bridgeone-m.github.io';
+  let rows=null, lastReceived=0, signature='', seq=0;
+  const pending=new Set();
+  let frame, panel, status, index=new Map();
+  function key(name){
+    return String(name||'').normalize('NFKC')
+      .replace(/\(\s*주\s*\)|\(\s*株\s*\)|주식회사|㈜|㈱/g,'')
+      .replace(/\s+/g,'').toLowerCase();
+  }
+  function date(s){
+    const m=String(s||'').match(/^(\d{2,4})[.\-/](\d{1,2})[.\-/](\d{1,2})\.?$/);
+    if(!m)return null;
+    let y=+m[1]; if(y<100)y+=2000;
+    const mo=+m[2],d=+m[3],v=new Date(Date.UTC(y,mo-1,d));
+    return v.getUTCFullYear()===y&&v.getUTCMonth()===mo-1&&v.getUTCDate()===d
+      ? v.toISOString().slice(0,10):null;
+  }
+  function today(){
+    const p=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Seoul',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date());
+    return ['year','month','day'].map(k=>p.find(x=>x.type===k).value).join('-');
+  }
+  function anniversary(s){
+    const [y,m,d]=s.split('-').map(Number);
+    const last=new Date(Date.UTC(y+1,m,0)).getUTCDate();
+    return String(y+1)+'-'+String(m).padStart(2,'0')+'-'+String(Math.min(d,last)).padStart(2,'0');
+  }
+  function classify(matches, now=today()){
+    if(!matches || matches.length!==1)return {kind:matches&&matches.length>1?'duplicate':'unmatched'};
+    const start=date(matches[0].mouDate);
+    if(!start)return {kind:'missing'};
+    const end=anniversary(start);
+    return {kind:start>now?'future':now<end?'new':'existing',start,end};
+  }
+  function markup(name){
+    if(!rows || Date.now()-lastReceived>90000)return '';
+    const state=classify(index.get(key(name)));
+    if(state.kind==='new')return '<span class="np-badge" title="협약일 '+state.start+' · 신규 표시 종료일 '+state.end+'">[신규]</span>';
+    if(state.kind==='existing')return '';
+    const reason={duplicate:'동일 정규화 업체명이 여러 건입니다',unmatched:'고객관리카드에서 업체를 찾지 못했습니다',missing:'유효한 협약일이 없거나 협약이 종료되었습니다',future:'협약일이 미래 날짜입니다'}[state.kind];
+    return '<span class="np-unknown" title="'+reason+'">협약일 확인</span>';
+  }
+  function request(){
+    if(!frame || !frame.contentWindow)return;
+    const id=String(++seq); pending.add(id);
+    if(pending.size>10)pending.delete(pending.values().next().value);
+    frame.contentWindow.postMessage({type:'POUR_AGREEMENTS_REQUEST_V1',requestId:id},CRM_ORIGIN);
+    if(lastReceived && Date.now()-lastReceived>90000){
+      rows=null; index.clear(); signature=''; renderAll();
+      status.textContent='고객관리카드 연결 확인 필요';
+    }
+  }
+  function init(){
+    const style=document.createElement('style');
+    style.textContent='.np-badge{display:inline-flex;align-items:center;margin-right:7px;padding:3px 8px;border-radius:6px;background:#e7fff2;color:#087746;border:1px solid #66dca3;box-shadow:0 0 9px #43d99555;font-size:11px;font-weight:850;white-space:nowrap}.con-name:has(.np-badge){background:linear-gradient(90deg,#eafff1b3,transparent);border-radius:7px;padding:5px 7px;box-shadow:-2px 0 0 #63d69b}.np-unknown{font-size:10px;color:#7b8595;border:1px solid #dde2e9;border-radius:5px;padding:2px 5px;margin-right:6px;white-space:nowrap}.np-sync{margin:0 0 12px;display:flex;gap:10px;align-items:center;font-size:12px;color:#53677a}.np-sync button{padding:6px 11px;border:1px solid #b6d9c7;border-radius:7px;background:#f1fff7;color:#166b47;cursor:pointer}.np-panel{display:none;position:fixed;inset:5vh 5vw;z-index:10000;background:white;border:1px solid #b4d8c5;border-radius:14px;box-shadow:0 0 0 100vmax #10251e88;overflow:hidden}.np-panel.open{display:flex;flex-direction:column}.np-panel header{padding:12px;display:flex;align-items:center;gap:12px;font-size:13px}.np-panel iframe{width:100%;flex:1;border:0}.np-panel:not(.open) iframe{position:absolute;width:1px;height:1px;visibility:hidden}';
+    document.head.append(style);
+    const bar=document.createElement('div');bar.className='np-sync';
+    status=document.createElement('span');status.textContent='고객관리카드 연결 중 · 신규업체 자동 확인';
+    const btn=document.createElement('button');btn.textContent='고객관리카드 연결';
+    bar.append(status,btn);(document.querySelector('.ct')||document.body).prepend(bar);
+    panel=document.createElement('section');panel.className='np-panel';
+    panel.setAttribute('aria-label','고객관리카드 협약일 연결');
+    const header=document.createElement('header');
+    const text=document.createElement('span');text.textContent='고객관리카드에 로그인하면 업체명과 협약일을 읽기 전용으로 연결합니다.';
+    const close=document.createElement('button');close.textContent='닫기';close.onclick=()=>panel.classList.remove('open');
+    header.append(text,close);frame=document.createElement('iframe');
+    frame.title='고객관리카드 협약일 읽기';frame.src=CRM_ORIGIN+'/card/';
+    panel.append(header,frame);document.body.append(panel);
+    btn.onclick=()=>{panel.classList.add('open');request();};
+    frame.onload=request;
+    window.addEventListener('message',e=>{
+      const d=e.data;
+      if(e.origin!==CRM_ORIGIN||e.source!==frame.contentWindow||!d||
+        d.type!=='POUR_AGREEMENTS_RESPONSE_V1'||!pending.has(d.requestId))return;
+      pending.delete(d.requestId);
+      if(!d.ready){if(rows){rows=null;index.clear();signature='';renderAll();}status.textContent='고객관리카드 로그인 또는 동기화 필요';return;}
+      if(!Array.isArray(d.rows))return;
+      const next=JSON.stringify(d.rows);rows=d.rows;lastReceived=Date.now();index=new Map();
+      rows.forEach(row=>{
+        new Set([row.name,...(Array.isArray(row.formerNames)?row.formerNames:[])].map(key).filter(Boolean)).forEach(k=>{
+          const list=index.get(k)||[];list.push(row);index.set(k,list);
+        });
+      });
+      status.textContent='고객관리카드 연결됨 · 신규업체 자동 판정';
+      panel.classList.remove('open');
+      if(next!==signature){signature=next;renderAll();}
+    });
+    setInterval(request,15000);
+    let day=today();setInterval(()=>{const next=today();if(day!==next){day=next;renderAll();}},30000);
+  }
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();
+  return {markup,key,date,anniversary,classify};
+})();
+</script>
 </body>
 </html>
