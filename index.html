@@ -6517,8 +6517,8 @@ window.PourNewPartner = (function(){
     const state=classify(index.get(key(name)));
     if(state.kind==='new')return '<span class="np-badge" title="협약일 '+state.start+' · 신규 표시 종료일 '+state.end+'">[신규]</span>';
     if(state.kind==='existing')return '';
-    const reason={duplicate:'동일 정규화 업체명이 여러 건입니다',unmatched:'고객관리카드에서 업체를 찾지 못했습니다',missing:'유효한 협약일이 없거나 협약이 종료되었습니다',future:'협약일이 미래 날짜입니다'}[state.kind];
-    return '<span class="np-unknown" title="'+reason+'">협약일 확인</span>';
+    // 신규 판정이 아닌 경우에는 별도 안내 문구를 표시하지 않습니다.
+    return '';
   }
   function request(){
     if(!frame || !frame.contentWindow)return;
