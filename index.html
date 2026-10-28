@@ -1406,6 +1406,9 @@ body{font-family:-apple-system,'Malgun Gothic','Apple SD Gothic Neo','맑은 고
 
 </style>
 <style>
+/* 현장설명회 D-day 알림 */
+.briefing-alarm-button{display:inline-flex;align-items:center;gap:6px;cursor:pointer;border:1px solid var(--b);border-radius:9px;background:var(--s);color:var(--t);padding:8px 12px;font:inherit;font-size:14px;font-weight:700}.briefing-alarm-count{min-width:20px;height:20px;padding:0 5px;border-radius:10px;background:#e85d04;color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:800}.briefing-alarm-popup[hidden]{display:none!important}.briefing-alarm-popup{position:fixed;z-index:900;width:390px;max-width:calc(100vw - 16px);max-height:min(480px,70dvh);box-sizing:border-box;background:var(--s,#fff);color:var(--t,#17202f);border:1px solid var(--b,#ddd);border-radius:13px;box-shadow:0 12px 36px #17202f26;display:flex;flex-direction:column;overflow:hidden;text-align:left}.briefing-alarm-head{display:flex;justify-content:space-between;gap:10px;padding:14px 16px;border-bottom:1px solid var(--b,#ddd)}.briefing-alarm-title{font-size:15px;font-weight:800;margin:0}.briefing-alarm-date{font-size:12px;color:var(--tm,#64748b);margin-top:5px}.briefing-alarm-close{border:0;background:transparent;font-size:22px;cursor:pointer;min-width:32px;min-height:32px}.briefing-alarm-body{overflow-y:auto;padding:0 16px;font-size:13px;line-height:1.55}.briefing-alarm-item{padding:11px 0;border-bottom:1px solid var(--b,#ddd)}.briefing-alarm-item-top{display:flex;justify-content:space-between;color:var(--tm,#64748b);font-size:12px}.briefing-alarm-dday{padding:2px 8px;border-radius:6px;background:#fff1e6;color:#c2410c;font-weight:850}.briefing-alarm-site{margin-top:4px;font-weight:800}
+.briefing-issue-warning[hidden]{display:none!important}.briefing-issue-warning{position:fixed;inset:0;z-index:12000;background:#11182766;display:flex;align-items:center;justify-content:center;padding:16px}.briefing-issue-box{width:min(420px,100%);background:#fff;border:1px solid #f2c078;border-radius:13px;box-shadow:0 16px 48px #11182733;padding:18px;color:#263244}.briefing-issue-title{font-size:16px;font-weight:850;margin:0 0 8px;color:#9a4b0a}.briefing-issue-copy{font-size:13px;line-height:1.55;margin:0 0 10px}.briefing-issue-list{max-height:160px;overflow:auto;margin:0 0 14px;padding:0;list-style:none}.briefing-issue-list li{padding:8px 10px;margin-top:5px;border-radius:7px;background:#fff7ed;font-size:12px;line-height:1.45}.briefing-issue-actions{display:flex;justify-content:flex-end;gap:8px}.briefing-issue-actions button{border-radius:7px;padding:8px 12px;font-size:12px;font-weight:750;cursor:pointer}.briefing-issue-cancel{border:1px solid #d8dee8;background:#fff;color:#465166}.briefing-issue-continue{border:1px solid #d97706;background:#d97706;color:#fff}
 .td-button{flex:none;cursor:pointer;border:1px solid var(--b);border-radius:9px;background:var(--s);color:var(--t);padding:8px 12px;font:inherit;font-size:18px;line-height:1.2}
 .td-popup[hidden]{display:none!important}
 .td-popup{position:fixed;z-index:900;width:390px;max-width:calc(100vw - 16px);max-height:min(480px,70dvh);box-sizing:border-box;background:var(--s,#fff);color:var(--t,#17202f);border:1px solid var(--b,#ddd);border-radius:13px;box-shadow:0 12px 36px #17202f26;display:flex;flex-direction:column;overflow:hidden;text-align:left}
@@ -1536,6 +1539,23 @@ body{font-family:-apple-system,'Malgun Gothic','Apple SD Gothic Neo','맑은 고
 })(typeof window==='undefined'?globalThis:window);
 
 </script>
+<script>
+/* 읽기 전용 현장설명회 일정 D-day 알림 */
+(function(root){
+'use strict';
+const seoulDate=(now=new Date())=>{const ps=new Intl.DateTimeFormat('en-US',{timeZone:'Asia/Seoul',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(now);const v=k=>ps.find(p=>p.type===k).value;return v('year')+'-'+v('month')+'-'+v('day');};
+const esc=x=>String(x).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function items(data,now=new Date()){const today=seoulDate(now),base=Date.parse(today+'T00:00:00Z');return(data||[]).filter(p=>/^\d{4}-\d{2}-\d{2}$/.test(p.briefingDate||'')&&p.briefingDate>=today).map(p=>({name:p.name||'(현장명 없음)',date:p.briefingDate,time:String(p.briefingTime||'').trim(),days:Math.round((Date.parse(p.briefingDate+'T00:00:00Z')-base)/86400000)})).sort((a,b)=>a.date.localeCompare(b.date)||a.time.localeCompare(b.time)||a.name.localeCompare(b.name,'ko'));}
+const api={seoulDate,items};if(typeof module!=='undefined'&&module.exports)module.exports=api;root.BriefingAlarm=api;if(typeof document==='undefined')return;
+let list=[],today=seoulDate(),timer;const btn=()=>document.getElementById('briefing-alarm-button'),box=()=>document.getElementById('briefing-alarm-popup');const fmt=d=>{const[y,m,x]=d.split('-');return y+'.'+m+'.'+x;};
+function pos(){const b=box(),q=btn();if(!b||b.hidden||!q)return;const r=q.getBoundingClientRect();b.style.left=Math.max(8,Math.min(r.right-b.offsetWidth,innerWidth-b.offsetWidth-8))+'px';b.style.top=Math.min(r.bottom+8,innerHeight-80)+'px';}
+function render(){const c=document.getElementById('briefing-alarm-count'),body=document.getElementById('briefing-alarm-body'),dt=document.getElementById('briefing-alarm-date');if(c)c.textContent=list.length;if(dt)dt.textContent='기준일 '+fmt(today);if(body)body.innerHTML=list.length?list.map(x=>'<article class="briefing-alarm-item"><div class="briefing-alarm-item-top"><span>'+fmt(x.date)+(x.time?' · '+esc(x.time)+'시':'')+'</span><span class="briefing-alarm-dday">'+(x.days?'D-'+x.days:'D-DAY')+'</span></div><div class="briefing-alarm-site">🏢 '+esc(x.name)+'</div></article>').join(''):'<p class="td-message">예정된 현장설명회 일정이 없습니다</p>';pos();}
+api.changed=data=>{list=items(data);today=seoulDate();render();};function close(){box().hidden=true;btn().setAttribute('aria-expanded','false');}
+function schedule(){clearTimeout(timer);const n=Date.parse(seoulDate()+'T00:00:00+09:00')+86400000;timer=setTimeout(()=>{today=seoulDate();list=items(typeof projects==='undefined'?list:projects);render();schedule();},Math.max(1,n-Date.now()+20));}
+document.addEventListener('DOMContentLoaded',()=>{const q=btn(),b=box();if(!q||!b)return;q.addEventListener('click',()=>{if(!b.hidden){close();return;}b.hidden=false;q.setAttribute('aria-expanded','true');list=items(typeof projects==='undefined'?list:projects);render();});document.getElementById('briefing-alarm-close').addEventListener('click',()=>{close();q.focus();});document.addEventListener('click',e=>{if(!b.hidden&&!b.contains(e.target)&&!q.contains(e.target))close();});document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!b.hidden){close();q.focus();}});addEventListener('resize',pos);addEventListener('scroll',pos,true);document.addEventListener('visibilitychange',()=>{if(!document.hidden){today=seoulDate();list=items(typeof projects==='undefined'?list:projects);render();}});render();schedule();});
+})(typeof window==='undefined'?globalThis:window);
+</script>
+
 </head>
 <body>
 
@@ -1572,6 +1592,8 @@ body{font-family:-apple-system,'Malgun Gothic','Apple SD Gothic Neo','맑은 고
       <div class="td-heading"><div><h2 id="today-dday-title" class="td-title">🔔 오늘 디데이</h2><div id="today-dday-date" class="td-date"></div></div><button type="button" id="today-dday-close" class="td-close" aria-label="알림 닫기">×</button></div>
       <div id="today-dday-body" class="td-body" aria-live="polite"></div>
     </section>
+    <button type="button" class="briefing-alarm-button" id="briefing-alarm-button" aria-expanded="false" aria-controls="briefing-alarm-popup">📢 현설 <span class="briefing-alarm-count" id="briefing-alarm-count">0</span></button>
+    <section id="briefing-alarm-popup" class="briefing-alarm-popup" role="dialog" aria-labelledby="briefing-alarm-title" hidden><div class="briefing-alarm-head"><div><h2 id="briefing-alarm-title" class="briefing-alarm-title">📢 현장설명회 일정</h2><div id="briefing-alarm-date" class="briefing-alarm-date"></div></div><button type="button" id="briefing-alarm-close" class="briefing-alarm-close" aria-label="알림 닫기">×</button></div><div id="briefing-alarm-body" class="briefing-alarm-body" aria-live="polite"></div></section>
     <button class="btn-folder" id="btn-pdf-folder" onclick="onPdfFolderClick(event)" title="PDF 저장폴더 설정 — 발행 시 현장별 하위폴더로 자동 저장">
       <span class="bf-ico">📁</span>
       <span class="bf-path" id="pdf-folder-label">저장폴더 미설정</span>
@@ -3282,6 +3304,7 @@ function isExpired(p){
 
 function renderAll(){
   TodayDday.changed();
+  BriefingAlarm.changed(projects);
   const q=document.getElementById('srch-inp').value.trim();
   // v13: 검색 - 현장명 또는 시공사명 매칭
   const all = q ? projects.filter(p => {
@@ -4742,7 +4765,43 @@ async function issueBatch(pId,cId){ return issueContractorQueue(pId,cId); }
 /* ═══ 미리보기 모달 ══════════════════════════════════ */
 let _preview = { jobs:[], mode:'single', open:false };
 
-function openPreview(opts){
+let _briefingIssueContinue=null;
+function getBriefingIssueWarnings(jobs){
+  const parts=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Seoul',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date());
+  const value=k=>parts.find(x=>x.type===k).value;
+  const today=value('year')+'-'+value('month')+'-'+value('day');
+  const todayUtc=Date.parse(today+'T00:00:00+09:00'), now=Date.now(), byProject=new Map();
+  for(const job of jobs){
+    const p=projects.find(x=>x.id===job.pId);
+    if(!p||!/^\d{4}-\d{2}-\d{2}$/.test(p.briefingDate||'')) continue;
+    const hm=String(p.briefingTime||'').trim().match(/^(\d{1,2})/);
+    const hour=hm?Number(hm[1]):null;
+    const end=hour!==null&&hour<=23
+      ? Date.parse(p.briefingDate+'T'+String(hour).padStart(2,'0')+':00:00+09:00')
+      : Date.parse(p.briefingDate+'T23:59:59+09:00');
+    if(!Number.isFinite(end)||end<now) continue;
+    if(!byProject.has(p.id)) byProject.set(p.id,{name:p.name||'(현장명 없음)',date:p.briefingDate,days:Math.max(0,Math.floor((Date.parse(p.briefingDate+'T00:00:00+09:00')-todayUtc)/86400000)),time:hour===null?'':hour+'시'});
+  }
+  return [...byProject.values()].sort((a,b)=>a.date.localeCompare(b.date));
+}
+function showBriefingIssueWarning(rows,onContinue){
+  const modal=document.getElementById('briefing-issue-warning'),list=document.getElementById('briefing-issue-list');
+  if(!modal||!list){if(confirm('현장설명회 일정이 아직 지나지 않은 현장이 있습니다. 계속 발행할까요?'))onContinue();return;}
+  list.replaceChildren();
+  rows.forEach(x=>{const li=document.createElement('li');li.textContent=`${x.name} · 현설 ${x.date}${x.time?' '+x.time:''} · ${x.days===0?'오늘(D-DAY)':'D-'+x.days}`;list.appendChild(li);});
+  _briefingIssueContinue=onContinue;modal.hidden=false;
+}
+function finishBriefingIssueWarning(continueIssue){
+  const modal=document.getElementById('briefing-issue-warning');if(modal)modal.hidden=true;
+  const next=_briefingIssueContinue;_briefingIssueContinue=null;
+  if(continueIssue&&next) next();
+}
+
+function openPreview(opts, briefingWarningAccepted=false){
+  if(!briefingWarningAccepted){
+    const warnings=getBriefingIssueWarnings(opts.jobs||[]);
+    if(warnings.length){showBriefingIssueWarning(warnings,()=>openPreview(opts,true));return;}
+  }
   _preview = { jobs: opts.jobs||[], mode: opts.mode||'single', open:true };
   const overlay = document.getElementById('pv-overlay');
   const body    = document.getElementById('pv-body');
@@ -6572,5 +6631,13 @@ window.PourNewPartner = (function(){
   return {markup,key,date,anniversary,classify};
 })();
 </script>
+<div id="briefing-issue-warning" class="briefing-issue-warning" role="alertdialog" aria-modal="true" aria-labelledby="briefing-issue-title" hidden onclick="if(event.target===this)finishBriefingIssueWarning(false)">
+  <section class="briefing-issue-box" onclick="event.stopPropagation()">
+    <h2 id="briefing-issue-title" class="briefing-issue-title">📢 현장설명회 일정 확인</h2>
+    <p class="briefing-issue-copy">아래 현장은 현장설명회 일정이 아직 지나지 않았습니다. 확인 후 계속 발행할 수 있습니다.</p>
+    <ul id="briefing-issue-list" class="briefing-issue-list"></ul>
+    <div class="briefing-issue-actions"><button type="button" class="briefing-issue-cancel" onclick="finishBriefingIssueWarning(false)">발행 취소</button><button type="button" class="briefing-issue-continue" onclick="finishBriefingIssueWarning(true)">확인 후 계속 발행</button></div>
+  </section>
+</div>
 </body>
 </html>
