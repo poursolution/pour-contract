@@ -1076,6 +1076,44 @@ body{font-family:-apple-system,'Malgun Gothic','Apple SD Gothic Neo','맑은 고
   border-radius:6px;font-size:10.5px;color:#6d28d9;font-weight:600;
   line-height:1.45;margin-top:auto;display:flex;flex-direction:column;gap:4px;}
 
+/* ════════ 기술인증서(cert) 모드 ════════ */
+.ps-cert{background:#ccfbf1;color:#0f766e;}
+.mode-tab.mss-active{background:linear-gradient(135deg,#7c3aed,#5b21b6);color:#fff}
+.mode-tab.cert-active{background:linear-gradient(135deg,#0d9488,#0f766e);color:#fff}
+.mss-info.cert{background:#f0fdfa;border-color:#99f6e4;color:#0f766e}
+.mss-info.cert .mss-info-hint{color:#0d9488}
+/* ════════ 재공고 / 유찰 구분 ════════ */
+.bidflag-row{display:flex;gap:8px;margin-bottom:6px}
+.bidflag-btn{flex:1;padding:10px 12px;border-radius:8px;font-size:13px;font-weight:700;
+  cursor:pointer;font-family:inherit;transition:all .15s;background:#fff;
+  border:1.5px solid var(--b);color:var(--tm)}
+.bidflag-btn:hover{background:var(--s2)}
+.bidflag-btn.fail.on{background:#fee2e2;border-color:#ef4444;color:#b91c1c}
+.bidflag-btn.rebid.on{background:#ede9fe;border-color:#7c3aed;color:#5b21b6}
+.bidflag-hint{font-size:11px;color:var(--tm);margin-bottom:12px;line-height:1.5}
+.bidflag-hint b{color:var(--t)}
+.rebid-badge{display:inline-flex;align-items:center;gap:3px;padding:3px 10px;margin-left:8px;
+  background:#7c3aed;color:#fff;border-radius:6px;font-size:14px;font-weight:900;
+  letter-spacing:-.2px;vertical-align:middle;line-height:1.3;flex-shrink:0;
+  box-shadow:0 1px 3px rgba(124,58,237,.35)}
+.rebid-badge.fail{background:#dc2626;box-shadow:0 1px 3px rgba(220,38,38,.35)}
+.mcard-row2 .rebid-badge{margin-left:0;font-size:13px;padding:3px 9px}
+.mcard-row2 .mcard-name{flex:0 1 auto}
+.mcard-row2 .mcard-progress{margin-left:auto}
+.bid-chip-fail{background:#fee2e2;color:#b91c1c;border:1px solid #fca5a5}
+.bid-chip-rebid{background:#ede9fe;color:#5b21b6;border:1px solid #c4b5fd}
+.failbid-block{flex:1;display:flex;align-items:center;padding:9px 13px;background:#fef2f2;
+  border:1.5px dashed #fca5a5;border-radius:9px;color:#b91c1c;font-size:12.5px;font-weight:700}
+/* ════════ 현장 메모 ════════ */
+.add-con-row{align-items:stretch}
+.add-con-row .ac-wrap{flex:1 1 0;min-width:0}
+.add-con-row .ac-wrap .add-con-inp{width:100%;box-sizing:border-box}
+.proj-memo{flex:1.3 1 0;min-width:0;padding:9px 13px;background:#fffbea;border:1.5px solid #fde68a;
+  border-radius:9px;color:var(--t);font-size:13px;font-family:inherit;line-height:1.45;
+  resize:vertical;min-height:40px;transition:border-color .2s,box-shadow .2s}
+.proj-memo:focus{outline:none;border-color:#f59e0b;box-shadow:0 0 0 3px rgba(245,158,11,.15)}
+.proj-memo::placeholder{color:#b8a46a}
+
 /* ════════ v15: 현장설명회 일자 (briefingDate) ════════ */
 /* 상세 모달 내 편집 영역 */
 .briefing-edit-row{margin:10px 14px 4px;padding:9px 14px;background:#fef3c7;
@@ -1461,7 +1499,7 @@ body{font-family:-apple-system,'Malgun Gothic','Apple SD Gothic Neo','맑은 고
     // Use the actual issue-date map, never dates found in free-text notes,
     // mail receipt, mail counts or project completion badges.
     // The existing export uses mailSentAt as the issue datetime for MSS.
-    if(p.patentMode==='mss') return hasDate(c.mailSentAt);
+    if(isManualMode(p)) return hasDate(c.mailSentAt);
     const dates=c.issuedAt||{};
     const ids=p.patentMode==='batch' ? Array.from(p.batchPatents||[]) :
       [...new Set([...Object.keys(c.status||{}),...Object.keys(dates)])];
@@ -1745,11 +1783,16 @@ document.addEventListener('DOMContentLoaded',()=>{const q=btn(),b=box();if(!q||!
       </div>
       <div class="batch-chips" id="mp-chips"></div>
     </div>
-    <!-- v21: 유찰공고 -->
-    <div class="fail-bid-row" id="m-failbid-row" onclick="toggleFailBid()">
-      <input type="checkbox" id="m-failbid" onclick="event.stopPropagation();syncFailBid()">
-      <label for="m-failbid">🔁 유찰공고 (재공고 현장)</label>
-      <span class="fb-hint">완료현장 탭에서 별도 분류</span>
+    <!-- 유찰 / 재공고 구분 (둘 중 하나만, 다시 누르면 해제) -->
+    <div class="m-lbl">🔁 유찰 · 재공고 (선택)</div>
+    <div class="bidflag-row">
+      <button type="button" class="bidflag-btn fail" id="m-flag-fail"
+        onclick="selectBidFlag('fail')">🚫 유찰</button>
+      <button type="button" class="bidflag-btn rebid" id="m-flag-rebid"
+        onclick="selectBidFlag('rebid')">🔁 재공고</button>
+    </div>
+    <div class="bidflag-hint" id="m-flag-hint">
+      <b>유찰</b>: 협약서 발행·시공사 등록 불가 &nbsp;|&nbsp; <b>재공고</b>: 현장명 옆에 '재공고' 표시
     </div>
     <div class="m-lbl">발행 마감일 · 시간</div>
     <div class="datetime-wrap">
@@ -2472,6 +2515,8 @@ function projectsToJSON(arr){
     patentNums:p.patentNums||'',        // v21: 입찰 특허번호 (자유 텍스트)
     isFailedBid:!!p.isFailedBid,        // v21: 유찰공고 여부
     bidFailed:!!p.bidFailed,            // v22: 유찰 처리(완료현장 이동) 여부
+    isRebid:!!p.isRebid,                // 재공고 현장 여부
+    memo:p.memo||'',                    // 현장 메모
     patentMode:p.patentMode||'batch',
     batchPatents:[...(p.batchPatents||[])],
     manualPending:!!p.manualPending,  // v10: 수동 발행대기 전환 플래그
@@ -2512,6 +2557,8 @@ function projectsFromJSON(arr){
       patentNums:p.patentNums||'',        // v21
       isFailedBid:!!p.isFailedBid,        // v21
       bidFailed:!!p.bidFailed,            // v22: 유찰 처리 여부
+      isRebid:!!p.isRebid,                // 재공고 현장 여부
+      memo:p.memo||'',                    // 현장 메모
       patentMode:p.patentMode||'batch',
       batchPatents:new Set(p.batchPatents||[]),
       manualPending,
@@ -2698,11 +2745,27 @@ function toggleMailReceived(pId, cId){
   renderAll();
 }
 
+/* ═══ 수동 관리 모드(자재공급승인원 / 기술인증서) ═══ */
+function isManualMode(p){ return !!p && (p.patentMode==='mss' || p.patentMode==='cert'); }
+function manualModeName(m){ return m==='cert' ? '기술인증서' : '자재공급승인원'; }
+function manualModeIcon(m){ return m==='cert' ? '🏅' : '📦'; }
+function modeName(m){ return m==='mss'||m==='cert' ? manualModeName(m) : (m==='pour' ? 'POUR공법' : '일괄'); }
+/* ═══ 유찰: 협약서 발행·시공사 등록 차단 ═══ */
+function isBidBlocked(p){ return !!p && (p.isFailedBid || p.bidFailed); }
+/* ═══ 현장 메모 저장 ═══ */
+function setProjectMemo(pId, value){
+  const p = projects.find(x=>x.id===pId);
+  if(!p) return;
+  p.memo = String(value||'');
+  saveProjects();
+}
+
 /* ═══ v14: 자재공급승인원 발송완료 토글 ═══ */
 function toggleMailSent(pId, cId){
   const p = projects.find(x=>x.id===pId);
   const c = p?.contractors.find(x=>x.id===cId);
   if(!p||!c) return;
+  if(isBidBlocked(p)){ showToast('유찰 현장은 발행할 수 없습니다', true); return; }
   if(c.mailSent){
     if(!confirm(`'${c.name}' 의 발송완료 표시를 취소할까요?`)) return;
     c.mailSent = false;
@@ -3093,22 +3156,23 @@ function selectBidType(t){
   document.getElementById('m-bid-n').classList.toggle('active', t===null);
   // 우편 버튼은 active-mail 사용 (보라색)
 }
-function toggleFailBid(){
-  const cb = document.getElementById('m-failbid');
-  cb.checked = !cb.checked;
-  syncFailBid();
+// 유찰 / 재공고 선택 (null | 'fail' | 'rebid') — 같은 버튼을 다시 누르면 해제
+let _modalBidFlag = null;
+function selectBidFlag(f){
+  _modalBidFlag = (_modalBidFlag === f) ? null : f;
+  syncBidFlag();
 }
-function syncFailBid(){
-  const cb = document.getElementById('m-failbid');
-  document.getElementById('m-failbid-row').classList.toggle('checked', cb.checked);
+function setBidFlag(f){ _modalBidFlag = f || null; syncBidFlag(); }
+function syncBidFlag(){
+  document.getElementById('m-flag-fail').classList.toggle('on', _modalBidFlag==='fail');
+  document.getElementById('m-flag-rebid').classList.toggle('on', _modalBidFlag==='rebid');
 }
 
 function openModal(){
   _editingProjectId=null;
   ['m-name','m-time','m-brief','m-brief-time'].forEach(id=>document.getElementById(id).value='');
   ['m-year','m-month','m-day'].forEach(id=>document.getElementById(id).value='');
-  document.getElementById('m-failbid').checked = false;
-  syncFailBid();
+  setBidFlag(null);
   selectBidType(null);  // v21: 미지정으로 리셋
   // v25: 특허 선택 초기화
   _modalPatents=new Set();
@@ -3131,8 +3195,7 @@ function editProject(pId){
   document.getElementById('m-brief').value=p.briefingDate||'';
   document.getElementById('m-brief-time').value=p.briefingTime?String(parseInt(p.briefingTime)):'';
   selectBidType(p.bidType||null);
-  document.getElementById('m-failbid').checked=!!p.isFailedBid;
-  syncFailBid();
+  setBidFlag(p.isFailedBid ? 'fail' : (p.isRebid ? 'rebid' : null));
   _modalPatents=new Set(p.batchPatents||[]);
   const mpInp=document.getElementById('mp-inp'); if(mpInp) mpInp.value='';
   _mpUpdateUI();
@@ -3167,7 +3230,8 @@ function confirmModal(){
   }
   // v21: 입찰방식, 유찰 / v25: 특허는 선택 picker로
   const bidType = _modalBidType;
-  const isFailedBid = document.getElementById('m-failbid').checked;
+  const isFailedBid = _modalBidFlag === 'fail';
+  const isRebid     = _modalBidFlag === 'rebid';
   const selectedPatents = new Set(_modalPatents);
 
   if(_editingProjectId!=null){
@@ -3177,14 +3241,14 @@ function confirmModal(){
       p.name=name;
       p.deadline=deadline; p.deadlineTime=deadlineTime;
       p.briefingDate=briefingDate; p.briefingTime=briefingTime;
-      p.bidType=bidType; p.isFailedBid=isFailedBid;
+      p.bidType=bidType; p.isFailedBid=isFailedBid; p.isRebid=isRebid;
       p.batchPatents=selectedPatents;
     }
     _editingProjectId=null;
   } else {
     projects.push({
       id:pNext++,name,deadline,deadlineTime,briefingDate,briefingTime,
-      bidType, patentNums:'', isFailedBid,   // v21 (patentNums 자유텍스트는 미사용)
+      bidType, patentNums:'', isFailedBid, isRebid, memo:'',   // v21 (patentNums 자유텍스트는 미사용)
       bidFailed:false,                   // v22: 유찰 처리 여부
       patentMode:'batch',         // 'batch' | 'pour'
       batchPatents:selectedPatents,   // v25: 등록 단계에서 선택한 특허
@@ -3204,7 +3268,7 @@ function confirmModal(){
 // Check if every contractor has every assigned patent done
 function isAllIssuedDone(p){
   if(!p.contractors.length) return false;
-  if(p.patentMode==='mss'){
+  if(isManualMode(p)){
     // 자재공급승인원 - 모든 업체가 발송완료면 완료 (메일확인 버튼 폐지 2026-11-10)
     return p.contractors.every(c => c.mailSent);
   } else if(p.patentMode==='batch'){
@@ -3559,13 +3623,12 @@ function exportCompletedToExcel(filterQuery){
   const rows = [];
   for(const p of pool){
     const dlStr = p.deadline ? fmtDate(p.deadline) + (p.deadlineTime ? ' ' + p.deadlineTime : '') : '미정';
-    const modeStr = p.patentMode === 'mss' ? '자재공급승인원'
-                  : p.patentMode === 'pour' ? 'POUR공법' : '일괄';
+    const modeStr = modeName(p.patentMode);
     // v21: 입찰방식, 특허번호, 유찰 — 이 프로젝트의 모든 row에 후처리로 부여
     const _ext = {
       '입찰방식': p.bidType==='electronic'?'전자':p.bidType==='mail'?'우편':'',
       '입찰특허번호': p.patentNums||'',
-      '유찰여부': (p.isFailedBid||p.bidFailed)?'🔁 유찰':''
+      '유찰여부': (p.isFailedBid||p.bidFailed)?'🚫 유찰':(p.isRebid?'🔁 재공고':'')
     };
     const _startIdx = rows.length;
 
@@ -3586,13 +3649,13 @@ function exportCompletedToExcel(filterQuery){
 
     for(const c of p.contractors){
       // 자재공급승인원 모드 - 발송 완료 1건당 1행
-      if(p.patentMode === 'mss'){
+      if(isManualMode(p)){
         if(c.mailSent){
           rows.push({
             '마감날짜': dlStr,
             '아파트명': p.name,
             '시공사': c.name,
-            '특허번호': '(자재공급승인원)',
+            '특허번호': `(${manualModeName(p.patentMode)})`,
             '특허명칭': '',
             '발행일시': c.mailSentAt ? fmtDateTime(c.mailSentAt) : '',
             '비고': c.note || '',
@@ -3751,7 +3814,7 @@ function renderMiniCard(p, isCompleted=false){
   }
 
   // v14: 자재공급승인원 모드 여부
-  const isMss = p.patentMode === 'mss';
+  const isMss = isManualMode(p);
 
   // v13: 특허 미선택 여부 판정
   //  - batch 모드: batchPatents가 비어있으면 미선택
@@ -3777,7 +3840,9 @@ function renderMiniCard(p, isCompleted=false){
 
   // v13: 카드 하단 안내 영역 - 상황에 따라 다른 표시
   let warnHtml = '';
-  if(!isCompleted && !p.bidFailed){   // v22: 유찰 처리 현장은 경고 미표시
+  if(p.isFailedBid && !p.bidFailed){
+    warnHtml = `<div class="mcard-empty-hint" style="color:#b91c1c">🚫 유찰 현장 — 협약서 발행 불가</div>`;
+  } else if(!isCompleted && !p.bidFailed){   // v22: 유찰 처리 현장은 경고 미표시
     if(isMss){
       // mss 모드 안내
       if(p.contractors.length === 0){
@@ -3826,13 +3891,15 @@ function renderMiniCard(p, isCompleted=false){
     ? `<span class="mcard-completed-mark" title="발행 완료">✓</span>` : '';
 
   // v13: 상태 옆에 "특허번호 확인 필요" 보조 뱃지 (업체 유무와 무관하게 표시)
-  const patentNeedBadge = (!isCompleted && !p.bidFailed && needPatents)
+  const patentNeedBadge = (!isCompleted && !isBidBlocked(p) && needPatents)
     ? `<span class="proj-status ps-need-pat">특허번호 확인 필요</span>`
     : '';
 
   // v14: 자재공급승인원 모드 뱃지 (모드 구분 표시)
   const mssBadge = isMss
-    ? `<span class="proj-status ps-mss">📦 자재공급승인원</span>`
+    ? (p.patentMode==='cert'
+        ? `<span class="proj-status ps-cert">🏅 기술인증서</span>`
+        : `<span class="proj-status ps-mss">📦 자재공급승인원</span>`)
     : '';
 
   // v19: 시간 마감 뱃지 (D-Day 옆 - 동일 색상 cls 재사용)
@@ -3845,8 +3912,11 @@ function renderMiniCard(p, isCompleted=false){
     ? '<span class="bid-chip bid-chip-e">💻 전자</span>'
     : p.bidType==='mail'
       ? '<span class="bid-chip bid-chip-m">📮 우편</span>' : '';
-  const failBidChipHtml = p.isFailedBid
-    ? '<span class="bid-chip bid-chip-f">🔁 유찰</span>' : '';
+  // 유찰은 재공고처럼 현장명 옆 큰 배지로 표시 (상단 작은 칩은 사용 안 함)
+  const failBidChipHtml = '';
+  const rebidBadgeHtml = p.isFailedBid
+    ? '<span class="rebid-badge fail">🚫 유찰</span>'
+    : (p.isRebid ? '<span class="rebid-badge">🔁 재공고</span>' : '');
   // v21: 입찰 특허번호 표시 (있을 때만)
   const patNumsHtml = (p.patentNums||'').trim()
     ? `<div class="bid-patnums">📋 ${escH(p.patentNums)}</div>` : '';
@@ -3864,6 +3934,7 @@ function renderMiniCard(p, isCompleted=false){
     </div>
     <div class="mcard-row2">
       <span class="mcard-name" title="${escH(p.name)}">${escH(p.name)}</span>
+      ${rebidBadgeHtml}
       <span class="mcard-progress" title="발행 진행률">${progText}</span>
     </div>
     ${briefHtml}
@@ -3912,7 +3983,14 @@ function _refreshDetailIfOpen(){
   const p = projects.find(x=>x.id===_detailPid);
   if(!p){ closeProjectDetail(); return; }
   const isCompleted = isExpired(p);
+  const ae = document.activeElement;
+  const keepId = (ae && ae.id && ae.id.startsWith('memo-')) ? ae.id : null;
+  const selS = keepId ? ae.selectionStart : 0, selE = keepId ? ae.selectionEnd : 0;
   document.getElementById('dt-content').innerHTML = renderProject(p, isCompleted);
+  if(keepId){
+    const el = document.getElementById(keepId);
+    if(el){ el.focus(); try{ el.setSelectionRange(selS, selE); }catch(e){} }
+  }
 }
 
 /* ═══ RENDER PROJECT ══════════════════════════════ */
@@ -3923,7 +4001,7 @@ function renderProject(p, isCompleted=false){
   const pct=total?Math.round(done/total*100):0;
   const dlStr=p.deadline?fmtDate(p.deadline)+(p.deadlineTime?' '+p.deadlineTime:''):'마감일 없음';
   const isPour=p.patentMode==='pour';
-  const isMss =p.patentMode==='mss';   // v14
+  const isMss =isManualMode(p);   // v14
   const completedCls=isCompleted?' completed-card':'';
   const allDoneNow=isAllIssuedDone(p);
   const locked=isCompleted; // expired → locked (read-only)
@@ -3949,7 +4027,9 @@ function renderProject(p, isCompleted=false){
   // patent chips for header
   let chipsHtml='';
   if(isMss){
-    chipsHtml=`<span class="pc-pat-chip" style="background:#ede9fe;color:#6d28d9;">📦 자재공급승인원</span>`;
+    chipsHtml = p.patentMode==='cert'
+      ? `<span class="pc-pat-chip" style="background:#ccfbf1;color:#0f766e;">🏅 기술인증서</span>`
+      : `<span class="pc-pat-chip" style="background:#ede9fe;color:#6d28d9;">📦 자재공급승인원</span>`;
   } else if(isPour){
     chipsHtml=`<span class="pc-pat-chip ppc-pour">🔧 POUR공법</span>`;
   } else if(p.batchPatents.size===0){
@@ -3963,9 +4043,10 @@ function renderProject(p, isCompleted=false){
     if(arr.length>3) chipsHtml+=`<span class="pc-pat-chip ppc-more">+${arr.length-3}개</span>`;
   }
 
+  const blocked = isBidBlocked(p);   // 유찰 → 발행·시공사 등록 불가
   const conHtml=p.contractors.length
-    ?p.contractors.map((c,ci)=>renderContractor(p,c,ci,locked)).join('')
-    :`<div class="con-empty">${locked?'등록된 시공사가 없습니다':'시공사를 추가하면 협약서를 발행할 수 있습니다'}</div>`;
+    ?p.contractors.map((c,ci)=>renderContractor(p,c,ci,locked||blocked)).join('')
+    :`<div class="con-empty">${blocked?'🚫 유찰 현장 — 협약서를 발행할 수 없습니다':(locked?'등록된 시공사가 없습니다':'시공사를 추가하면 협약서를 발행할 수 있습니다')}</div>`;
 
   // batch list removed - now uses search UI
 
@@ -3982,7 +4063,7 @@ function renderProject(p, isCompleted=false){
       ${wanBadge}
       <div class="d-badge ${cls}">${label}</div>
       <div class="pc-info">
-        <div class="pc-name">${statusBadgeHtml}${escH(p.name)}</div>
+        <div class="pc-name">${statusBadgeHtml}${escH(p.name)}${p.isRebid?'<span class="rebid-badge">🔁 재공고</span>':''}${p.isFailedBid?'<span class="rebid-badge fail">🚫 유찰</span>':''}</div>
         <div class="pc-deadline">${briefInlineHtml}마감일: ${dlStr}</div>
       </div>
       <div class="pc-patents">${chipsHtml}</div>
@@ -4096,19 +4177,21 @@ function renderProject(p, isCompleted=false){
         <div class="pat-config-top">
           <span class="pat-config-label">발행 방식</span>
           ${locked
-            ?`<span style="font-size:12px;color:var(--tm);font-weight:600">${isMss?'📦 자재공급승인원':(isPour?'🔧 POUR공법':'📋 일괄')} (마감 잠금)</span>`
+            ?`<span style="font-size:12px;color:var(--tm);font-weight:600">${isMss?(manualModeIcon(p.patentMode)+' '+manualModeName(p.patentMode)):(isPour?'🔧 POUR공법':'📋 일괄')} (마감 잠금)</span>`
             :`<div class="mode-tabs">
               <button class="mode-tab${(!isPour && !isMss)?' active-batch':''}"
                 onclick="event.stopPropagation();setMode(${p.id},'batch')">📋 일괄 (전 업체 동일)</button>
               <button class="mode-tab${isPour?' active-pour':''}"
                 onclick="event.stopPropagation();setMode(${p.id},'pour')">🔧 POUR공법 (업체별)</button>
-              <button class="mode-tab${isMss?' mss-active':''}"
+              <button class="mode-tab${p.patentMode==='mss'?' mss-active':''}"
                 onclick="event.stopPropagation();setMode(${p.id},'mss')">📦 자재공급승인원</button>
+              <button class="mode-tab${p.patentMode==='cert'?' cert-active':''}"
+                onclick="event.stopPropagation();setMode(${p.id},'cert')">🏅 기술인증서</button>
             </div>`}
         </div>
         ${isMss
-          ? `<div class="mss-info">
-              📦 <strong>자재공급승인원 모드</strong>
+          ? `<div class="mss-info${p.patentMode==='cert'?' cert':''}">
+              ${manualModeIcon(p.patentMode)} <strong>${manualModeName(p.patentMode)} 모드</strong>
               <div class="mss-info-hint">특허번호 자동 발행이 아닌 수동 관리 모드입니다. 업체 등록 후 발송완료를 직접 체크해주세요. 업체별 비고란에 적용 특허·자재 정보를 적을 수 있습니다.</div>
             </div>`
           : ''}
@@ -4138,10 +4221,12 @@ function renderProject(p, isCompleted=false){
           ${locked?'🔧 POUR공법 모드 (마감 잠금 — 발행현황만 조회 가능)':'🔧 POUR공법 모드: 아래 각 시공사 행에서 특허번호를 개별 선택 후 발행하세요.'}
         </div>
       </div>
-      <!-- ② 시공사 추가 (잠금 시 숨김) -->
-      ${!locked?`<div class="add-con-wrap">
+      <!-- ② 시공사 추가 (잠금·유찰 시 숨김) + 현장 메모(항상 표시) -->
+      <div class="add-con-wrap" onclick="event.stopPropagation()">
         <div class="add-con-row">
-          <div class="ac-wrap">
+          ${blocked
+            ? `<div class="failbid-block">🚫 유찰 현장 — 시공사 등록·협약서 발행 불가</div>`
+            : (locked ? '' : `<div class="ac-wrap">
             <input class="add-con-inp" id="ci-${p.id}"
               placeholder="시공사명 입력 (과거 등록 업체 자동완성)"
               oninput="acUpdate(${p.id},this.value)"
@@ -4150,10 +4235,14 @@ function renderProject(p, isCompleted=false){
               onkeydown="if(event.key==='Enter'){event.preventDefault();addContractor(${p.id})}"
               autocomplete="off">
             <div class="ac-drop" id="ac-drop-${p.id}"></div>
-          </div>
-          <button class="btn-add-con" onclick="addContractor(${p.id})">+ 발행업체 추가</button>
+          </div>`)}
+          <textarea class="proj-memo" id="memo-${p.id}" rows="1"
+            placeholder="📝 메모 (자유롭게 입력)"
+            oninput="setProjectMemo(${p.id},this.value)"
+            onclick="event.stopPropagation()">${escH(p.memo||'')}</textarea>
+          ${(!locked && !blocked)?`<button class="btn-add-con" onclick="addContractor(${p.id})">+ 발행업체 추가</button>`:''}
         </div>
-      </div>`:''}
+      </div>
       <!-- ③ 시공사 목록 -->
       <div class="con-list" id="cl-${p.id}">${conHtml}</div>
     </div>
@@ -4164,7 +4253,7 @@ function renderProject(p, isCompleted=false){
 function renderContractor(p,c,ci,locked=false){
   const col=COLORS[ci%COLORS.length];
   const isPour=p.patentMode==='pour';
-  const isMss =p.patentMode==='mss';  // v14
+  const isMss =isManualMode(p);  // v14
   const key=`${p.id}-${c.id}`;
   const pStatus = projStatus(p);  // v11: 메일 버튼 dim 처리용
 
@@ -4237,7 +4326,7 @@ function renderContractor(p,c,ci,locked=false){
   const sentLabel = sentChecked ? '발송완료' : '발송하기';
   const sentTooltip = sentChecked && c.mailSentAt
     ? `발송 완료 — ${new Date(c.mailSentAt).toLocaleString('ko-KR',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'})}`
-    : '자재공급승인원을 시공사에 발송했으면 클릭';
+    : `${manualModeName(p.patentMode)} 발송 완료 시 클릭`;
   const sentBtnHtml = isMss
     ? (locked
         ? (sentChecked ? `<span class="btn-mail-sent sent" style="cursor:default" title="${escH(sentTooltip)}">${sentIcon} ${sentLabel}</span>` : '')
@@ -4513,8 +4602,8 @@ function setMode(pId,mode){
     c.mailSent
   );
   if(hasIssued){
-    const fromName = p.patentMode==='mss' ? '자재공급승인원' : (p.patentMode==='pour' ? 'POUR공법' : '일괄');
-    const toName   = mode==='mss' ? '자재공급승인원' : (mode==='pour' ? 'POUR공법' : '일괄');
+    const fromName = modeName(p.patentMode);
+    const toName   = modeName(mode);
     if(!confirm(`'${fromName}' 모드에서 '${toName}' 모드로 변경하시겠습니까?\n\n⚠ 이미 진행 이력이 있는 현장입니다.\n이력 데이터는 보존되지만 새 모드 화면에서는 보이지 않을 수 있습니다.`)) return;
   }
   p.patentMode = mode;
@@ -4627,6 +4716,7 @@ function addContractor(pId){
   const name=normalizeCo(raw);
   const p=projects.find(x=>x.id===pId);
   if(!p) return;
+  if(isBidBlocked(p)){ showToast('유찰 현장은 시공사를 등록할 수 없습니다', true); return; }
   // v10: 동일 업체 중복 등록 방지
   const dup = (p.contractors||[]).find(c => normalizeCo(c.name) === name);
   if(dup){
@@ -4845,6 +4935,16 @@ function requirePdfFolder(){
 }
 
 function openPreview(opts, briefingWarningAccepted=false){
+  // 유찰 현장은 협약서 발행 불가 — 해당 건 제외
+  {
+    const all = opts.jobs||[];
+    const ok  = all.filter(j=>!isBidBlocked(projects.find(x=>x.id===j.pId)));
+    if(ok.length !== all.length){
+      if(!ok.length){ showToast('유찰 현장은 협약서를 발행할 수 없습니다', true); return; }
+      showToast(`유찰 현장 ${all.length-ok.length}건은 발행에서 제외했습니다`, true);
+      opts = {...opts, jobs: ok};
+    }
+  }
   if(!requirePdfFolder()) return;
   if(!briefingWarningAccepted){
     const warnings=getBriefingIssueWarnings(opts.jobs||[]);
@@ -5260,7 +5360,7 @@ window.addEventListener('load', positionStamp);
 /* ═══ HELPERS ══════════════════════════════════════ */
 function projProgress(p){
   let done=0,total=0;
-  if(p.patentMode==='mss'){
+  if(isManualMode(p)){
     // 자재공급승인원 - 업체 단위 진행률 (발송완료 = 완료, 메일확인 폐지 2026-11-10)
     total = p.contractors.length;
     done  = p.contractors.filter(c => c.mailSent).length;
@@ -6588,103 +6688,7 @@ function handleExcelUpload(ev){
 </script>
 
 
-<script>
-/* 신규 협약사 표시 — 고객관리카드의 협약 정보만 읽습니다. */
-window.PourNewPartner = (function(){
-  'use strict';
-  const CRM_ORIGIN='https://bridgeone-m.github.io';
-  let rows=null, lastReceived=0, signature='', seq=0;
-  const pending=new Set();
-  let frame, panel, status, index=new Map();
-  function key(name){
-    return String(name||'').normalize('NFKC')
-      .replace(/\(\s*주\s*\)|\(\s*株\s*\)|주식회사|㈜|㈱/g,'')
-      .replace(/\s+/g,'').toLowerCase();
-  }
-  function date(s){
-    const m=String(s||'').match(/^(\d{2,4})[.\-/](\d{1,2})[.\-/](\d{1,2})\.?$/);
-    if(!m)return null;
-    let y=+m[1]; if(y<100)y+=2000;
-    const mo=+m[2],d=+m[3],v=new Date(Date.UTC(y,mo-1,d));
-    return v.getUTCFullYear()===y&&v.getUTCMonth()===mo-1&&v.getUTCDate()===d
-      ? v.toISOString().slice(0,10):null;
-  }
-  function today(){
-    const p=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Seoul',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date());
-    return ['year','month','day'].map(k=>p.find(x=>x.type===k).value).join('-');
-  }
-  function anniversary(s){
-    const [y,m,d]=s.split('-').map(Number);
-    const last=new Date(Date.UTC(y+1,m,0)).getUTCDate();
-    return String(y+1)+'-'+String(m).padStart(2,'0')+'-'+String(Math.min(d,last)).padStart(2,'0');
-  }
-  function classify(matches, now=today()){
-    if(!matches || matches.length!==1)return {kind:matches&&matches.length>1?'duplicate':'unmatched'};
-    const start=date(matches[0].mouDate);
-    if(!start)return {kind:'missing'};
-    const end=anniversary(start);
-    return {kind:start>now?'future':now<end?'new':'existing',start,end};
-  }
-  function markup(name){
-    if(!rows || Date.now()-lastReceived>90000)return '';
-    const state=classify(index.get(key(name)));
-    if(state.kind==='new')return '<span class="np-badge" title="협약일 '+state.start+' · 신규 표시 종료일 '+state.end+'">[신규]</span>';
-    if(state.kind==='existing')return '';
-    // 신규 판정이 아닌 경우에는 별도 안내 문구를 표시하지 않습니다.
-    return '';
-  }
-  function request(){
-    if(!frame || !frame.contentWindow)return;
-    const id=String(++seq); pending.add(id);
-    if(pending.size>10)pending.delete(pending.values().next().value);
-    frame.contentWindow.postMessage({type:'POUR_AGREEMENTS_REQUEST_V1',requestId:id},CRM_ORIGIN);
-    if(lastReceived && Date.now()-lastReceived>90000){
-      rows=null; index.clear(); signature=''; renderAll();
-      status.textContent='고객관리카드 연결 확인 필요';
-    }
-  }
-  function init(){
-    const style=document.createElement('style');
-    style.textContent='.np-badge{display:inline-flex;align-items:center;margin-right:7px;padding:3px 8px;border-radius:6px;background:#e7fff2;color:#087746;border:1px solid #66dca3;box-shadow:0 0 9px #43d99555;font-size:11px;font-weight:850;white-space:nowrap}.con-name:has(.np-badge){background:linear-gradient(90deg,#eafff1b3,transparent);border-radius:7px;padding:5px 7px;box-shadow:-2px 0 0 #63d69b}.np-unknown{font-size:10px;color:#7b8595;border:1px solid #dde2e9;border-radius:5px;padding:2px 5px;margin-right:6px;white-space:nowrap}.np-sync{margin:0 0 12px;display:flex;gap:10px;align-items:center;font-size:12px;color:#53677a}.np-sync button{padding:6px 11px;border:1px solid #b6d9c7;border-radius:7px;background:#f1fff7;color:#166b47;cursor:pointer}.np-panel{display:none;position:fixed;inset:5vh 5vw;z-index:10000;background:white;border:1px solid #b4d8c5;border-radius:14px;box-shadow:0 0 0 100vmax #10251e88;overflow:hidden}.np-panel.open{display:flex;flex-direction:column}.np-panel header{padding:12px;display:flex;align-items:center;gap:12px;font-size:13px}.np-panel iframe{width:100%;flex:1;border:0}.np-panel:not(.open) iframe{position:absolute;width:1px;height:1px;visibility:hidden}';
-    document.head.append(style);
-    const bar=document.createElement('div');bar.className='np-sync';
-    status=document.createElement('span');status.textContent='고객관리카드 연결 중 · 신규업체 자동 확인';
-    const btn=document.createElement('button');btn.textContent='고객관리카드 연결';
-    bar.append(status,btn);(document.querySelector('.ct')||document.body).prepend(bar);
-    panel=document.createElement('section');panel.className='np-panel';
-    panel.setAttribute('aria-label','고객관리카드 협약일 연결');
-    const header=document.createElement('header');
-    const text=document.createElement('span');text.textContent='고객관리카드에 로그인하면 업체명과 협약일을 읽기 전용으로 연결합니다.';
-    const close=document.createElement('button');close.textContent='닫기';close.onclick=()=>panel.classList.remove('open');
-    header.append(text,close);frame=document.createElement('iframe');
-    frame.title='고객관리카드 협약일 읽기';frame.src=CRM_ORIGIN+'/card/';
-    panel.append(header,frame);document.body.append(panel);
-    btn.onclick=()=>{panel.classList.add('open');request();};
-    frame.onload=request;
-    window.addEventListener('message',e=>{
-      const d=e.data;
-      if(e.origin!==CRM_ORIGIN||e.source!==frame.contentWindow||!d||
-        d.type!=='POUR_AGREEMENTS_RESPONSE_V1'||!pending.has(d.requestId))return;
-      pending.delete(d.requestId);
-      if(!d.ready){if(rows){rows=null;index.clear();signature='';renderAll();}status.textContent='고객관리카드 로그인 또는 동기화 필요';return;}
-      if(!Array.isArray(d.rows))return;
-      const next=JSON.stringify(d.rows);rows=d.rows;lastReceived=Date.now();index=new Map();
-      rows.forEach(row=>{
-        new Set([row.name,...(Array.isArray(row.formerNames)?row.formerNames:[])].map(key).filter(Boolean)).forEach(k=>{
-          const list=index.get(k)||[];list.push(row);index.set(k,list);
-        });
-      });
-      status.textContent='고객관리카드 연결됨 · 신규업체 자동 판정';
-      panel.classList.remove('open');
-      if(next!==signature){signature=next;renderAll();}
-    });
-    setInterval(request,15000);
-    let day=today();setInterval(()=>{const next=today();if(day!==next){day=next;renderAll();}},30000);
-  }
-  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();
-  return {markup,key,date,anniversary,classify};
-})();
-</script>
+<!-- 고객관리카드 연결(신규 협약사 [신규] 표시) 제거 -->
 <div id="briefing-issue-warning" class="briefing-issue-warning" role="alertdialog" aria-modal="true" aria-labelledby="briefing-issue-title" hidden onclick="if(event.target===this)finishBriefingIssueWarning(false)">
   <section class="briefing-issue-box" onclick="event.stopPropagation()">
     <h2 id="briefing-issue-title" class="briefing-issue-title">📢 현장설명회 일정 확인</h2>
