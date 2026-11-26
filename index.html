@@ -2513,7 +2513,8 @@ function projectsToJSON(arr){
     briefingTime:p.briefingTime||null,  // v17: 현장설명회 시간
     bidType:p.bidType||null,            // v21: 'electronic' | 'mail' | null
     patentNums:p.patentNums||'',        // v21: 입찰 특허번호 (자유 텍스트)
-    isFailedBid:!!p.isFailedBid,        // v21: 유찰공고 여부
+    isFailedBid:!!p.isRebid,            // 예전 '유찰공고(재공고 현장)' 체크 = 재공고 (구버전 호환)
+    noBid:!!p.noBid,                    // 유찰 (사용자가 직접 표시)
     bidFailed:!!p.bidFailed,            // v22: 유찰 처리(완료현장 이동) 여부
     isRebid:!!p.isRebid,                // 재공고 현장 여부
     memo:p.memo||'',                    // 현장 메모
@@ -2555,9 +2556,9 @@ function projectsFromJSON(arr){
       briefingTime:p.briefingTime||null,  // v17: 현장설명회 시간
       bidType:p.bidType||null,            // v21
       patentNums:p.patentNums||'',        // v21
-      isFailedBid:!!p.isFailedBid,        // v21
+      noBid:!!p.noBid,                    // 유찰 (사용자가 직접 표시)
       bidFailed:!!p.bidFailed,            // v22: 유찰 처리 여부
-      isRebid:!!p.isRebid,                // 재공고 현장 여부
+      isRebid:!!p.isRebid || !!p.isFailedBid,  // 재공고 (예전 '유찰공고(재공고 현장)' 체크 포함)
       memo:p.memo||'',                    // 현장 메모
       patentMode:p.patentMode||'batch',
       batchPatents:new Set(p.batchPatents||[]),
@@ -2751,7 +2752,7 @@ function manualModeName(m){ return m==='cert' ? '기술인증서' : '자재공�
 function manualModeIcon(m){ return m==='cert' ? '🏅' : '📦'; }
 function modeName(m){ return m==='mss'||m==='cert' ? manualModeName(m) : (m==='pour' ? 'POUR공법' : '일괄'); }
 /* ═══ 유찰: 협약서 발행·시공사 등록 차단 ═══ */
-function isBidBlocked(p){ return !!p && (p.isFailedBid || p.bidFailed); }
+function isBidBlocked(p){ return !!p && (p.noBid || p.bidFailed); }
 /* ═══ 현장 메모 저장 ═══ */
 function setProjectMemo(pId, value){
   const p = projects.find(x=>x.id===pId);
@@ -3195,7 +3196,7 @@ function editProject(pId){
   document.getElementById('m-brief').value=p.briefingDate||'';
   document.getElementById('m-brief-time').value=p.briefingTime?String(parseInt(p.briefingTime)):'';
   selectBidType(p.bidType||null);
-  setBidFlag(p.isFailedBid ? 'fail' : (p.isRebid ? 'rebid' : null));
+  setBidFlag(p.noBid ? 'fail' : (p.isRebid ? 'rebid' : null));
   _modalPatents=new Set(p.batchPatents||[]);
   const mpInp=document.getElementById('mp-inp'); if(mpInp) mpInp.value='';
   _mpUpdateUI();
@@ -3230,7 +3231,7 @@ function confirmModal(){
   }
   // v21: 입찰방식, 유찰 / v25: 특허는 선택 picker로
   const bidType = _modalBidType;
-  const isFailedBid = _modalBidFlag === 'fail';
+  const noBid = _modalBidFlag === 'fail';
   const isRebid     = _modalBidFlag === 'rebid';
   const selectedPatents = new Set(_modalPatents);
 
@@ -3241,14 +3242,14 @@ function confirmModal(){
       p.name=name;
       p.deadline=deadline; p.deadlineTime=deadlineTime;
       p.briefingDate=briefingDate; p.briefingTime=briefingTime;
-      p.bidType=bidType; p.isFailedBid=isFailedBid; p.isRebid=isRebid;
+      p.bidType=bidType; p.noBid=noBid; p.isRebid=isRebid;
       p.batchPatents=selectedPatents;
     }
     _editingProjectId=null;
   } else {
     projects.push({
       id:pNext++,name,deadline,deadlineTime,briefingDate,briefingTime,
-      bidType, patentNums:'', isFailedBid, isRebid, memo:'',   // v21 (patentNums 자유텍스트는 미사용)
+      bidType, patentNums:'', noBid, isRebid, memo:'',   // v21 (patentNums 자유텍스트는 미사용)
       bidFailed:false,                   // v22: 유찰 처리 여부
       patentMode:'batch',         // 'batch' | 'pour'
       batchPatents:selectedPatents,   // v25: 등록 단계에서 선택한 특허
@@ -3549,17 +3550,17 @@ function renderCompletedSearch(q){
   }
   // v21: 유찰만 보기 필터 적용
   if(_fbFilterOnly){
-    pool = pool.filter(p => p.isFailedBid || p.bidFailed);  // v22: 유찰공고 + 유찰처리
+    pool = pool.filter(p => p.noBid || p.bidFailed);  // v22: 유찰공고 + 유찰처리
   }
   // v21: 유찰을 위로 정렬 (유찰 우선 → 그 다음 마감일 최근순)
   pool.sort((a,b)=>{
-    const fa=(a.isFailedBid||a.bidFailed)?1:0, fb=(b.isFailedBid||b.bidFailed)?1:0;  // v22
+    const fa=(a.noBid||a.bidFailed)?1:0, fb=(b.noBid||b.bidFailed)?1:0;  // v22
     if(fb!==fa) return fb-fa;
     return (b.deadline||'').localeCompare(a.deadline||'');
   });
 
   // v21: 유찰 카운트
-  const fbCount = projects.filter(p => (p.isFailedBid || p.bidFailed) && (projStatus(p)==='done' || isExpired(p))).length;  // v22
+  const fbCount = projects.filter(p => (p.noBid || p.bidFailed) && (projStatus(p)==='done' || isExpired(p))).length;  // v22
   titleBadge.textContent = pool.length + '개';
 
   // v14: 엑셀 내보내기 버튼 + v21: 유찰 필터 토글
@@ -3628,7 +3629,7 @@ function exportCompletedToExcel(filterQuery){
     const _ext = {
       '입찰방식': p.bidType==='electronic'?'전자':p.bidType==='mail'?'우편':'',
       '입찰특허번호': p.patentNums||'',
-      '유찰여부': (p.isFailedBid||p.bidFailed)?'🚫 유찰':(p.isRebid?'🔁 재공고':'')
+      '유찰여부': (p.noBid||p.bidFailed)?'🚫 유찰':(p.isRebid?'🔁 재공고':'')
     };
     const _startIdx = rows.length;
 
@@ -3840,7 +3841,7 @@ function renderMiniCard(p, isCompleted=false){
 
   // v13: 카드 하단 안내 영역 - 상황에 따라 다른 표시
   let warnHtml = '';
-  if(p.isFailedBid && !p.bidFailed){
+  if(p.noBid && !p.bidFailed){
     warnHtml = `<div class="mcard-empty-hint" style="color:#b91c1c">🚫 유찰 현장 — 협약서 발행 불가</div>`;
   } else if(!isCompleted && !p.bidFailed){   // v22: 유찰 처리 현장은 경고 미표시
     if(isMss){
@@ -3914,7 +3915,7 @@ function renderMiniCard(p, isCompleted=false){
       ? '<span class="bid-chip bid-chip-m">📮 우편</span>' : '';
   // 유찰은 재공고처럼 현장명 옆 큰 배지로 표시 (상단 작은 칩은 사용 안 함)
   const failBidChipHtml = '';
-  const rebidBadgeHtml = p.isFailedBid
+  const rebidBadgeHtml = p.noBid
     ? '<span class="rebid-badge fail">🚫 유찰</span>'
     : (p.isRebid ? '<span class="rebid-badge">🔁 재공고</span>' : '');
   // v21: 입찰 특허번호 표시 (있을 때만)
@@ -4063,7 +4064,7 @@ function renderProject(p, isCompleted=false){
       ${wanBadge}
       <div class="d-badge ${cls}">${label}</div>
       <div class="pc-info">
-        <div class="pc-name">${statusBadgeHtml}${escH(p.name)}${p.isRebid?'<span class="rebid-badge">🔁 재공고</span>':''}${p.isFailedBid?'<span class="rebid-badge fail">🚫 유찰</span>':''}</div>
+        <div class="pc-name">${statusBadgeHtml}${escH(p.name)}${p.isRebid?'<span class="rebid-badge">🔁 재공고</span>':''}${p.noBid?'<span class="rebid-badge fail">🚫 유찰</span>':''}</div>
         <div class="pc-deadline">${briefInlineHtml}마감일: ${dlStr}</div>
       </div>
       <div class="pc-patents">${chipsHtml}</div>
